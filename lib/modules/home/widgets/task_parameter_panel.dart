@@ -48,6 +48,9 @@ class _TaskParameterPanelState extends State<TaskParameterPanel> {
       _ensureLoad();
       final dragPayload = widget.controller.activeDragPayload.value;
       final canDragGroups = widget.controller.canUseDesktopDragCopy;
+      final canQuickSchedule =
+          widget.controller.isTaskEnabled(widget.scriptModel, _taskName) &&
+          widget.controller.canQuickScheduleTask(widget.scriptModel, _taskName);
       if (_taskName.isEmpty) {
         return const SizedBox.shrink();
       }
@@ -74,6 +77,20 @@ class _TaskParameterPanelState extends State<TaskParameterPanel> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+              ),
+              IconButton(
+                tooltip: I18n.homeQuickRun.tr,
+                onPressed: canQuickSchedule
+                    ? () => _quickSchedule(runNow: true)
+                    : null,
+                icon: const Icon(Icons.flash_on_rounded, size: 18),
+              ),
+              IconButton(
+                tooltip: I18n.homeQuickWait.tr,
+                onPressed: canQuickSchedule
+                    ? () => _quickSchedule(runNow: false)
+                    : null,
+                icon: const Icon(Icons.schedule_rounded, size: 18),
               ),
               TaskJsonTransferActions(
                 configName: _scriptName,
@@ -144,6 +161,22 @@ class _TaskParameterPanelState extends State<TaskParameterPanel> {
       return;
     }
     _startLoad(nextScript, nextTask, nextScope);
+  }
+
+  Future<void> _quickSchedule({required bool runNow}) async {
+    final script = _scriptName.trim();
+    final task = _taskName.trim();
+    if (script.isEmpty || task.isEmpty) {
+      return;
+    }
+    final success = await widget.controller.quickScheduleTask(
+      scriptName: script,
+      taskName: task,
+      runNow: runNow,
+    );
+    if (success) {
+      Get.snackbar(I18n.success.tr, task.tr);
+    }
   }
 
   Future<void> _reloadCurrentTask() async {

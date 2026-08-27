@@ -74,6 +74,43 @@ class ArgsController extends GetxController {
     }
   }
 
+  Future<void> loadGroupsFromData({
+    required String config,
+    required String task,
+    required Map<String, dynamic> json,
+    bool stagingMode = false,
+    SaveArgumentCallback? saveArgumentOverride,
+  }) async {
+    _loadedConfig = config;
+    _loadedTask = task;
+    updateScopeScripts(const [], config: config);
+    _saveArgumentOverride = saveArgumentOverride;
+    isDraftMode.value = stagingMode;
+    dirtyFieldKeys.clear();
+    fieldErrors.clear();
+    _originalValues.clear();
+
+    final groupsMap = <String, GroupsModel>{};
+    final names = <String>[];
+    for (final entry in json.entries) {
+      if (entry.value is! List) {
+        continue;
+      }
+      names.add(entry.key);
+      final arguments = <ArgumentModel>[];
+      for (final argument in entry.value) {
+        if (argument is Map) {
+          arguments.add(ArgumentModel.fromJson(argument.cast<String, dynamic>()));
+        }
+      }
+      groupsMap[entry.key] =
+          GroupsModel(groupName: entry.key, members: arguments);
+    }
+    groupsData.value = groupsMap;
+    groupsName.value = names;
+    _snapshotOriginalValues();
+  }
+
   Future<dynamic> getArgValue(
       String config, String task, String group, String argument) {
     if (groupsData.value.isEmpty) {

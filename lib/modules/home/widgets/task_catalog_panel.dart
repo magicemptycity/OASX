@@ -8,6 +8,7 @@ import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
 import 'package:oasx/modules/home/widgets/split_scroll_row.dart';
 import 'package:oasx/modules/home/widgets/task_parameter_panel.dart';
+import 'package:oasx/modules/home/widgets/multi_account_repeat_panel.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 class TaskCatalogPanel extends StatefulWidget {
@@ -72,11 +73,17 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
         index: activeTask.isEmpty ? 0 : 1,
         children: [
           _buildTaskList(context, dragPayload),
-          TaskParameterPanel(
-            controller: widget.controller,
-            scriptModel: widget.scriptModel,
-            onBack: _handleBackFromParameters,
-          ),
+          activeTask.startsWith('MultiAccountRepeat')
+              ? MultiAccountRepeatPanel(
+                  scriptName: widget.scriptModel.name,
+                  repeatTaskName: activeTask,
+                  onBack: _handleBackFromParameters,
+                )
+              : TaskParameterPanel(
+                  controller: widget.controller,
+                  scriptModel: widget.scriptModel,
+                  onBack: _handleBackFromParameters,
+                ),
         ],
       );
     });
