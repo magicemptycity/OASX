@@ -69,10 +69,11 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
     return Obx(() {
       final activeTask = widget.controller.activeTaskName.value.trim();
       final dragPayload = widget.controller.activeDragPayload.value;
+      final quickScheduleLocked = widget.controller.isBulkQuickScheduling;
       return IndexedStack(
         index: activeTask.isEmpty ? 0 : 1,
         children: [
-          _buildTaskList(context, dragPayload),
+          _buildTaskList(context, dragPayload, quickScheduleLocked),
           activeTask.startsWith('MultiAccountRepeat')
               ? MultiAccountRepeatPanel(
                   scriptName: widget.scriptModel.name,
@@ -92,6 +93,7 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
   Widget _buildTaskList(
     BuildContext context,
     ConfigDragPayload? dragPayload,
+    bool quickScheduleLocked,
   ) {
     return Column(
       children: [
@@ -106,10 +108,12 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
               }
               if (snapshot.hasError) {
                 return Center(
-                    child: Text('${I18n.error.tr}: ${snapshot.error}'));
+                  child: Text('${I18n.error.tr}: ${snapshot.error}'),
+                );
               }
-              final enabledTaskNames =
-                  widget.controller.enabledTaskNamesFor(widget.scriptModel);
+              final enabledTaskNames = widget.controller.enabledTaskNamesFor(
+                widget.scriptModel,
+              );
               _syncEnabledOverrides(enabledTaskNames);
               final sections = _sections(
                 snapshot.data ?? const <String, List<String>>{},
@@ -127,10 +131,9 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
                   child: Divider(
                     height: 1,
                     thickness: 1,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outlineVariant
-                        .withValues(alpha: 0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.7),
                   ),
                 ),
                 itemBuilder: (context, index) => _CatalogSectionCard(
@@ -147,11 +150,9 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
                   onOpenTask: widget.onOpenTask,
                   onQuickRun: widget.onQuickRun,
                   onQuickWait: widget.onQuickWait,
-                  canQuickScheduleTask: (taskName) =>
-                      widget.controller.canQuickScheduleTask(
-                    widget.scriptModel,
-                    taskName,
-                  ),
+                  canQuickScheduleTask: (taskName) => widget.controller
+                      .canQuickScheduleTask(widget.scriptModel, taskName),
+                  quickScheduleLocked: quickScheduleLocked,
                   dragEnabled: widget.controller.canUseDesktopDragCopy,
                   activeDragPayload: dragPayload,
                 ),
@@ -315,7 +316,9 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
   }
 
   Future<void> _handleToggleTaskEnabled(
-      _CatalogTaskData task, bool enable) async {
+    _CatalogTaskData task,
+    bool enable,
+  ) async {
     if (_togglingTasks.contains(task.name)) {
       return;
     }
@@ -363,7 +366,8 @@ class _CatalogSectionTitle extends StatelessWidget {
       groupName: section.groupName,
       taskNames: section.allTaskNames,
     );
-    final isDraggingGroup = activeDragPayload?.matchesTaskCatalogGroup(
+    final isDraggingGroup =
+        activeDragPayload?.matchesTaskCatalogGroup(
           sourceScriptName,
           section.groupName,
         ) ??
@@ -415,6 +419,7 @@ class _CatalogTaskRow extends StatelessWidget {
     required this.onQuickRun,
     required this.onQuickWait,
     required this.canQuickScheduleTask,
+    required this.quickScheduleLocked,
     required this.dragEnabled,
     required this.activeDragPayload,
   });
@@ -428,6 +433,7 @@ class _CatalogTaskRow extends StatelessWidget {
   final Future<void> Function(String taskName) onQuickRun;
   final Future<void> Function(String taskName) onQuickWait;
   final bool Function(String taskName) canQuickScheduleTask;
+  final bool quickScheduleLocked;
   final bool dragEnabled;
   final ConfigDragPayload? activeDragPayload;
   static const _actionExtent = 132.0;
@@ -435,17 +441,14 @@ class _CatalogTaskRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDraggingTask = activeDragPayload?.matchesTask(
-          sourceScriptName,
-          task.name,
-        ) ??
-        false;
-    final rowBackground = Theme.of(context)
-        .colorScheme
-        .secondaryContainer
-        .withValues(alpha: 0.18);
-    final dragColor =
-        Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.42);
+    final isDraggingTask =
+        activeDragPayload?.matchesTask(sourceScriptName, task.name) ?? false;
+    final rowBackground = Theme.of(
+      context,
+    ).colorScheme.secondaryContainer.withValues(alpha: 0.18);
+    final dragColor = Theme.of(
+      context,
+    ).colorScheme.primaryContainer.withValues(alpha: 0.42);
     final isScriptGroup = task.groupName == I18n.script;
     final supportsEnable = !isScriptGroup || task.name == I18n.restart;
     final payload = controller.buildTaskDragPayload(
@@ -478,6 +481,7 @@ class _CatalogTaskRow extends StatelessWidget {
             onQuickRun: onQuickRun,
             onQuickWait: onQuickWait,
             canQuickSchedule: canQuickScheduleTask(task.name),
+            quickScheduleLocked: quickScheduleLocked,
           ),
           leading: Row(
             mainAxisSize: MainAxisSize.min,
@@ -564,6 +568,7 @@ class _CatalogSectionCard extends StatelessWidget {
     required this.onQuickRun,
     required this.onQuickWait,
     required this.canQuickScheduleTask,
+    required this.quickScheduleLocked,
     required this.dragEnabled,
     required this.activeDragPayload,
   });
@@ -576,11 +581,12 @@ class _CatalogSectionCard extends StatelessWidget {
   final Set<String> togglingTasks;
   final VoidCallback onToggleExpanded;
   final Future<void> Function(_CatalogTaskData task, bool enable)
-      onToggleEnabled;
+  onToggleEnabled;
   final Future<void> Function(String taskName) onOpenTask;
   final Future<void> Function(String taskName) onQuickRun;
   final Future<void> Function(String taskName) onQuickWait;
   final bool Function(String taskName) canQuickScheduleTask;
+  final bool quickScheduleLocked;
   final bool dragEnabled;
   final ConfigDragPayload? activeDragPayload;
 
@@ -589,7 +595,8 @@ class _CatalogSectionCard extends StatelessWidget {
     final effectiveExpanded = forceExpanded || expanded;
     final scheme = Theme.of(context).colorScheme;
     final cardColor = Theme.of(context).cardColor;
-    final isDraggingGroup = activeDragPayload?.matchesTaskCatalogGroup(
+    final isDraggingGroup =
+        activeDragPayload?.matchesTaskCatalogGroup(
           sourceScriptName,
           section.groupName,
         ) ??
@@ -600,8 +607,8 @@ class _CatalogSectionCard extends StatelessWidget {
       color: isDraggingGroup
           ? scheme.primaryContainer.withValues(alpha: 0.35)
           : effectiveExpanded
-              ? cardColor
-              : scheme.surfaceContainerLow,
+          ? cardColor
+          : scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.7)),
@@ -643,22 +650,26 @@ class _CatalogSectionCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Column(
                 children: [
-                  for (int index = 0;
-                      index < section.tasks.length;
-                      index++) ...[
+                  for (
+                    int index = 0;
+                    index < section.tasks.length;
+                    index++
+                  ) ...[
                     if (index > 0) const Divider(height: 1),
                     _CatalogTaskRow(
                       controller: controller,
                       sourceScriptName: sourceScriptName,
                       task: section.tasks[index],
-                      loading:
-                          togglingTasks.contains(section.tasks[index].name),
+                      loading: togglingTasks.contains(
+                        section.tasks[index].name,
+                      ),
                       onToggleEnabled: (value) =>
                           onToggleEnabled(section.tasks[index], value),
                       onOpenTask: onOpenTask,
                       onQuickRun: onQuickRun,
                       onQuickWait: onQuickWait,
                       canQuickScheduleTask: canQuickScheduleTask,
+                      quickScheduleLocked: quickScheduleLocked,
                       dragEnabled: dragEnabled,
                       activeDragPayload: activeDragPayload,
                     ),
@@ -680,6 +691,7 @@ class _TaskIconBar extends StatelessWidget {
     required this.onQuickRun,
     required this.onQuickWait,
     required this.canQuickSchedule,
+    required this.quickScheduleLocked,
   });
 
   final _CatalogTaskData task;
@@ -687,6 +699,7 @@ class _TaskIconBar extends StatelessWidget {
   final Future<void> Function(String taskName) onQuickRun;
   final Future<void> Function(String taskName) onQuickWait;
   final bool canQuickSchedule;
+  final bool quickScheduleLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -699,7 +712,7 @@ class _TaskIconBar extends StatelessWidget {
           _IconOnlyButton(
             icon: Icons.flash_on_rounded,
             tooltip: I18n.homeQuickRun.tr,
-            onPressed: task.enabled && canQuickSchedule
+            onPressed: task.enabled && canQuickSchedule && !quickScheduleLocked
                 ? () => onQuickRun(task.name)
                 : null,
           ),
@@ -707,7 +720,7 @@ class _TaskIconBar extends StatelessWidget {
           _IconOnlyButton(
             icon: Icons.schedule_rounded,
             tooltip: I18n.homeQuickWait.tr,
-            onPressed: task.enabled && canQuickSchedule
+            onPressed: task.enabled && canQuickSchedule && !quickScheduleLocked
                 ? () => onQuickWait(task.name)
                 : null,
           ),
@@ -766,3 +779,4 @@ class _CatalogTaskData {
   final String groupName;
   bool enabled;
 }
+
