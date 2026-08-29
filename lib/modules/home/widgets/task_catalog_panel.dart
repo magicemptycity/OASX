@@ -9,6 +9,10 @@ import 'package:oasx/modules/home/models/config_model.dart';
 import 'package:oasx/modules/home/widgets/split_scroll_row.dart';
 import 'package:oasx/modules/home/widgets/task_parameter_panel.dart';
 import 'package:oasx/modules/home/widgets/multi_account_repeat_panel.dart';
+import 'package:oasx/modules/home/widgets/multi_account_repeat_timed_panel.dart';
+import 'package:oasx/modules/home/widgets/multi_account_repeat_normal_panel.dart';
+import 'package:oasx/modules/home/widgets/multi_account_repeat_fixed_panel.dart';
+import 'package:oasx/modules/home/widgets/multi_account_kekkai_utilize_new_panel.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 class TaskCatalogPanel extends StatefulWidget {
@@ -74,18 +78,41 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
         index: activeTask.isEmpty ? 0 : 1,
         children: [
           _buildTaskList(context, dragPayload, quickScheduleLocked),
-          activeTask.startsWith('MultiAccountRepeat')
-              ? MultiAccountRepeatPanel(
-                  scriptName: widget.scriptModel.name,
-                  repeatTaskName: activeTask,
+          activeTask == 'MultiAccountRepeatNew'
+              ? MultiAccountRepeatNewPanel(
+                  controller: widget.controller,
+                  scriptModel: widget.scriptModel,
+                  onBack: _handleBackFromParameters,
+                )
+              : activeTask == 'MultiAccountRepeatNewNormal'
+              ? MultiAccountRepeatNewNormalPanel(
+                  controller: widget.controller,
+                  scriptModel: widget.scriptModel,
+                  onBack: _handleBackFromParameters,
+                )
+              : activeTask == 'MultiAccountRepeatNewFixed'
+              ? MultiAccountRepeatNewFixedPanel(
+                  controller: widget.controller,
+                  scriptModel: widget.scriptModel,
+                  onBack: _handleBackFromParameters,
+                )
+              : activeTask == 'MultiAccountRepeatTimed'
+              ? MultiAccountRepeatTimedPanel(
+                  controller: widget.controller,
+                  scriptModel: widget.scriptModel,
+                  onBack: _handleBackFromParameters,
+                )
+              : activeTask == 'MultiAccountKekkaiUtilizeNew'
+              ? MultiAccountKekkaiUtilizeNewPanel(
+                  controller: widget.controller,
+                  scriptModel: widget.scriptModel,
                   onBack: _handleBackFromParameters,
                 )
               : TaskParameterPanel(
                   controller: widget.controller,
                   scriptModel: widget.scriptModel,
                   onBack: _handleBackFromParameters,
-                ),
-        ],
+                ),        ],
       );
     });
   }
@@ -779,4 +806,3 @@ class _CatalogTaskData {
   final String groupName;
   bool enabled;
 }
-

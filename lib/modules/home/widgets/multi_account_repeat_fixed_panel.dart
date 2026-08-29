@@ -8,9 +8,9 @@ import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
-/// 多账号多任务新的独立配置面板。
-class MultiAccountRepeatNewPanel extends StatefulWidget {
-  const MultiAccountRepeatNewPanel({
+/// 多账号多任务新固定时间的独立配置面板。
+class MultiAccountRepeatNewFixedPanel extends StatefulWidget {
+  const MultiAccountRepeatNewFixedPanel({
     super.key,
     required this.controller,
     required this.scriptModel,
@@ -24,12 +24,12 @@ class MultiAccountRepeatNewPanel extends StatefulWidget {
   String get scriptName => scriptModel.name;
 
   @override
-  State<MultiAccountRepeatNewPanel> createState() =>
-      _MultiAccountRepeatNewPanelState();
+  State<MultiAccountRepeatNewFixedPanel> createState() =>
+      _MultiAccountRepeatNewFixedPanelState();
 }
 
-class _MultiAccountRepeatNewPanelState
-    extends State<MultiAccountRepeatNewPanel> {
+class _MultiAccountRepeatNewFixedPanelState
+    extends State<MultiAccountRepeatNewFixedPanel> {
   late Future<Map<String, dynamic>> _stateFuture;
   int _selectedAccount = 1;
   final Set<String> _loadingTasks = <String>{};
@@ -37,13 +37,13 @@ class _MultiAccountRepeatNewPanelState
   @override
   void initState() {
     super.initState();
-    _stateFuture = ApiClient().getMultiAccountRepeatNewAccounts(
+    _stateFuture = ApiClient().getMultiAccountRepeatNewFixedAccounts(
       scriptName: widget.scriptName,
     );
   }
 
   @override
-  void didUpdateWidget(covariant MultiAccountRepeatNewPanel oldWidget) {
+  void didUpdateWidget(covariant MultiAccountRepeatNewFixedPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.scriptName == widget.scriptName) {
       return;
@@ -75,15 +75,17 @@ class _MultiAccountRepeatNewPanelState
                 _selectedAccount = accounts.length;
               }
               final account = accounts[_selectedAccount - 1];
-              return SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(context, accounts),
-                    const SizedBox(height: 12),
-                    _buildAccountContent(context, account),
-                  ],
-                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(context, accounts),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: _buildAccountContent(context, account),
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -96,11 +98,11 @@ class _MultiAccountRepeatNewPanelState
     final canQuickSchedule =
         widget.controller.isTaskEnabled(
           widget.scriptModel,
-          'MultiAccountRepeatNew',
+          'MultiAccountRepeatNewFixed',
         ) &&
         widget.controller.canQuickScheduleTask(
           widget.scriptModel,
-          'MultiAccountRepeatNew',
+          'MultiAccountRepeatNewFixed',
         );
     return Row(
       children: [
@@ -112,7 +114,7 @@ class _MultiAccountRepeatNewPanelState
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            '多账号多任务新'.tr,
+            '多账号多任务新固定时间'.tr,
             style: Theme.of(context).textTheme.titleMedium,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -134,7 +136,7 @@ class _MultiAccountRepeatNewPanelState
         ),
         TaskJsonTransferActions(
           configName: widget.scriptName,
-          taskName: 'MultiAccountRepeatNew',
+          taskName: 'MultiAccountRepeatNewFixed',
           onImported: _reloadAfterImport,
         ),
       ],
@@ -148,11 +150,11 @@ class _MultiAccountRepeatNewPanelState
   Future<void> _quickSchedule({required bool runNow}) async {
     final success = await widget.controller.quickScheduleTask(
       scriptName: widget.scriptName,
-      taskName: 'MultiAccountRepeatNew',
+      taskName: 'MultiAccountRepeatNewFixed',
       runNow: runNow,
     );
     if (success) {
-      Get.snackbar(I18n.success.tr, '多账号多任务新'.tr);
+      Get.snackbar(I18n.success.tr, '多账号多任务新固定时间'.tr);
     }
   }
 
@@ -245,13 +247,7 @@ class _MultiAccountRepeatNewPanelState
     BuildContext context,
     Map<String, dynamic> account,
   ) {
-    return Column(
-      children: [
-        _buildFixedTimeBatches(context, account),
-        const SizedBox(height: 12),
-        _buildTaskList(context, account),
-      ],
-    );
+    return _buildFixedTimeBatches(context, account);
   }
 
   Widget _buildFixedTimeBatches(
@@ -282,6 +278,11 @@ class _MultiAccountRepeatNewPanelState
                     '${_accountLabel(account)}：固定时间任务',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                ),
+                IconButton(
+                  tooltip: '删除账号'.tr,
+                  onPressed: () => _deleteTaskAccount(accountIndex),
+                  icon: const Icon(Icons.person_remove_outlined),
                 ),
                 FilledButton.icon(
                   onPressed: () => _addFixedTimeBatch(accountIndex),
@@ -322,61 +323,204 @@ class _MultiAccountRepeatNewPanelState
     final batchId = '${batch['batch_id'] ?? ''}';
     final enabled = batch['enable'] == true;
     final tasks = _maps(batch['tasks']);
+    final canEdit = batchId.isNotEmpty;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        children: [
-          Switch(
-            value: enabled,
-            onChanged: batchId.isEmpty
-                ? null
-                : (value) async {
-                    if (await ApiClient()
-                        .setMultiAccountRepeatNewFixedTimeBatchEnable(
-                          scriptName: widget.scriptName,
-                          accountIndex: accountIndex,
-                          batchId: batchId,
-                          enable: value,
-                        )) {
-                      _reload();
-                    }
-                  },
-          ),
-          const SizedBox(width: 4),
-          OutlinedButton.icon(
-            onPressed: batchId.isEmpty
-                ? null
-                : () => _editFixedTimeBatchTime(accountIndex, batch),
-            icon: const Icon(Icons.schedule_rounded, size: 18),
-            label: Text('${batch['run_time'] ?? '--:--'}'),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: batchId.isEmpty
-                  ? null
-                  : () =>
-                        _showFixedTimeBatchTaskListDialog(accountIndex, batch),
-              icon: const Icon(Icons.list_alt_rounded, size: 18),
-              label: Text('任务列表（${tasks.length}）'),
-            ),
-          ),
-          IconButton(
-            tooltip: '删除时间批次',
-            onPressed: batchId.isEmpty
-                ? null
-                : () => _deleteFixedTimeBatch(accountIndex, batchId),
-            icon: const Icon(Icons.delete_outline_rounded),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 为上下两个主按钮预留同样的宽度；右侧图标与开关不参与按钮宽度计算。
+          final controlWidth = (constraints.maxWidth - 104).clamp(0.0, double.infinity).toDouble();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    width: controlWidth,
+                    child: OutlinedButton.icon(
+                      onPressed: !canEdit
+                          ? null
+                          : () => _editFixedTimeBatchTime(accountIndex, batch),
+                      icon: const Icon(Icons.schedule_rounded, size: 18),
+                      label: Text(
+                        _batchScheduleLabel(batch),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: '复制到其他账号'.tr,
+                    onPressed: !canEdit
+                        ? null
+                        : () => _showCopyFixedTimeBatchDialog(
+                              accountIndex,
+                              batchId,
+                            ),
+                    icon: const Icon(Icons.content_copy_rounded),
+                  ),
+                  IconButton(
+                    tooltip: '删除时间批次',
+                    onPressed: !canEdit
+                        ? null
+                        : () => _deleteFixedTimeBatch(accountIndex, batchId),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  SizedBox(
+                    width: controlWidth,
+                    child: OutlinedButton.icon(
+                      onPressed: !canEdit
+                          ? null
+                          : () => _showFixedTimeBatchTaskListDialog(
+                                accountIndex,
+                                batch,
+                              ),
+                      icon: const Icon(Icons.list_alt_rounded, size: 18),
+                      label: Text('任务列表（${tasks.length}）'),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Switch(
+                    value: enabled,
+                    onChanged: !canEdit
+                        ? null
+                        : (value) async {
+                            if (await ApiClient()
+                                .setMultiAccountRepeatNewFixedFixedTimeBatchEnable(
+                                  scriptName: widget.scriptName,
+                                  accountIndex: accountIndex,
+                                  batchId: batchId,
+                                  enable: value,
+                                )) {
+                              _reload();
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
+  Future<void> _showCopyFixedTimeBatchDialog(
+    int sourceAccountIndex,
+    String batchId,
+  ) async {
+    final state = await _stateFuture;
+    if (!mounted) return;
+    final candidates = _maps(state['accounts']).where((account) {
+      final accountIndex = account['index'] as int? ?? 0;
+      return accountIndex != sourceAccountIndex;
+    }).toList();
+    if (candidates.isEmpty) {
+      Get.snackbar(I18n.tip.tr, '没有其他账号可复制'.tr);
+      return;
+    }
+
+    var keyword = '';
+    final selectedIndexes = <int>{};
+    final targetIndexes = await showDialog<List<int>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final query = keyword.trim().toLowerCase();
+          final visibleAccounts = candidates.where((account) {
+            final searchText = '${_accountLabel(account)} ${_accountPickerDetail(account)}'.toLowerCase();
+            return query.isEmpty || searchText.contains(query);
+          }).toList();
+          return AlertDialog(
+            title: const Text('复制固定时间批次'),
+            content: SizedBox(
+              width: 460,
+              height: 520,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('将复制时间和周期、启用状态、批次任务及其私有配置；不会复制任务状态、运行记录和上次成功时间。'),
+                  const SizedBox(height: 10),
+                  TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      hintText: '搜索账号、角色名或服务器'.tr,
+                    ),
+                    onChanged: (value) => setDialogState(() => keyword = value),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: visibleAccounts.isEmpty
+                        ? const Center(child: Text('没有匹配的账号'))
+                        : ListView.builder(
+                            itemCount: visibleAccounts.length,
+                            itemBuilder: (context, index) {
+                              final account = visibleAccounts[index];
+                              final accountIndex = account['index'] as int? ?? 0;
+                              return CheckboxListTile(
+                                value: selectedIndexes.contains(accountIndex),
+                                onChanged: (value) => setDialogState(() {
+                                  if (value == true) {
+                                    selectedIndexes.add(accountIndex);
+                                  } else {
+                                    selectedIndexes.remove(accountIndex);
+                                  }
+                                }),
+                                title: Text(_accountLabel(account)),
+                                subtitle: Text(_accountPickerDetail(account)),
+                                controlAffinity: ListTileControlAffinity.leading,
+                                contentPadding: EdgeInsets.zero,
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(I18n.cancel.tr),
+              ),
+              FilledButton.icon(
+                onPressed: selectedIndexes.isEmpty
+                    ? null
+                    : () => Navigator.of(
+                          dialogContext,
+                        ).pop(selectedIndexes.toList()),
+                icon: const Icon(Icons.content_copy_rounded),
+                label: Text('复制'.tr),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (targetIndexes == null || targetIndexes.isEmpty) return;
+    final success = await ApiClient().copyMultiAccountRepeatNewFixedFixedTimeBatch(
+      scriptName: widget.scriptName,
+      accountIndex: sourceAccountIndex,
+      batchId: batchId,
+      targetAccountIndexes: targetIndexes,
+    );
+    if (success) {
+      Get.snackbar(I18n.success.tr, '已复制到${targetIndexes.length}个账号'.tr);
+      _reload();
+    }
+  }
+  // ignore: unused_element
   Widget _buildTaskList(BuildContext context, Map<String, dynamic> account) {
     final tasks = _maps(account['tasks']);
     final accountIndex = account['index'] as int? ?? _selectedAccount;
@@ -416,77 +560,74 @@ class _MultiAccountRepeatNewPanelState
               ],
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              // 至少预留十个任务的位置；第十一个任务才在列表内出现滚动条。
-              height: _taskListBodyHeight(),
-              child: tasks.isEmpty
-                  ? Center(child: Text('当前账号尚未添加任务'.tr))
-                  : ListView.separated(
-                      itemCount: tasks.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        final taskName = '${task['task_name'] ?? ''}'.trim();
-                        final taskDisplayName =
-                            '${task['task_display_name'] ?? taskName}'.trim();
-                        final status = '${task['status'] ?? 'pending'}';
-                        final loading = _loadingTasks.contains(taskName);
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            _taskStatusIcon(status),
-                            color: _taskStatusColor(context, status),
+            if (tasks.isEmpty)
+              Expanded(child: Center(child: Text('当前账号尚未添加任务'.tr)))
+            else
+              Expanded(
+                child: ListView.separated(
+                  itemCount: tasks.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final task = tasks[index];
+                    final taskName = '${task['task_name'] ?? ''}'.trim();
+                    final taskDisplayName =
+                        '${task['task_display_name'] ?? taskName}'.trim();
+                    final status = '${task['status'] ?? 'pending'}';
+                    final loading = _loadingTasks.contains(taskName);
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        _taskStatusIcon(status),
+                        color: _taskStatusColor(context, status),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(taskDisplayName)),
+                          const SizedBox(width: 8),
+                          _buildTaskStatusBadge(context, status),
+                        ],
+                      ),
+                      subtitle: Text(_taskStatusLabel(status)),
+                      trailing: Wrap(
+                        spacing: 2,
+                        children: [
+                          IconButton(
+                            tooltip: '设置私有配置'.tr,
+                            onPressed: loading || taskName.isEmpty
+                                ? null
+                                : () => _showTaskSettings(
+                                    accountIndex,
+                                    taskName,
+                                    taskDisplayName,
+                                  ),
+                            icon: loading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.settings_rounded),
                           ),
-                          title: Row(
-                            children: [
-                              Expanded(child: Text(taskDisplayName)),
-                              const SizedBox(width: 8),
-                              _buildTaskStatusBadge(context, status),
-                            ],
+                          IconButton(
+                            tooltip: '删除任务'.tr,
+                            onPressed: loading || taskName.isEmpty
+                                ? null
+                                : () => _deleteTask(accountIndex, taskName),
+                            icon: const Icon(Icons.delete_outline_rounded),
                           ),
-                          subtitle: Text(_taskStatusLabel(status)),
-                          trailing: Wrap(
-                            spacing: 2,
-                            children: [
-                              IconButton(
-                                tooltip: '设置私有配置'.tr,
-                                onPressed: loading || taskName.isEmpty
-                                    ? null
-                                    : () => _showTaskSettings(
-                                        accountIndex,
-                                        taskName,
-                                        taskDisplayName,
-                                      ),
-                                icon: loading
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.settings_rounded),
-                              ),
-                              IconButton(
-                                tooltip: '删除任务'.tr,
-                                onPressed: loading || taskName.isEmpty
-                                    ? null
-                                    : () => _deleteTask(accountIndex, taskName),
-                                icon: const Icon(Icons.delete_outline_rounded),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
         ),
       ),
     );
   }
-
-  double _taskListBodyHeight() => 10 * 72.0;
 
   IconData _taskStatusIcon(String status) {
     return switch (status) {
@@ -671,7 +812,7 @@ class _MultiAccountRepeatNewPanelState
   }
 
   Future<void> _showPublicAccounts() async {
-    final data = await ApiClient().getMultiAccountRepeatNewPublicAccounts(
+    final data = await ApiClient().getMultiAccountRepeatNewFixedPublicAccounts(
       scriptName: widget.scriptName,
     );
     if (!mounted) return;
@@ -711,7 +852,7 @@ class _MultiAccountRepeatNewPanelState
                             tooltip: '删除'.tr,
                             onPressed: () async {
                               final ok = await ApiClient()
-                                  .deleteMultiAccountRepeatNewPublicAccount(
+                                  .deleteMultiAccountRepeatNewFixedPublicAccount(
                                     scriptName: widget.scriptName,
                                     identifier: identifier,
                                   );
@@ -749,7 +890,7 @@ class _MultiAccountRepeatNewPanelState
               final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
               if (identifier == null || identifier.trim().isEmpty) return;
               final ok = await ApiClient()
-                  .addMultiAccountRepeatNewPublicAccount(
+                  .addMultiAccountRepeatNewFixedPublicAccount(
                     scriptName: widget.scriptName,
                     identifier: identifier.trim(),
                   );
@@ -840,7 +981,7 @@ class _MultiAccountRepeatNewPanelState
                 ];
                 for (final field in fields) {
                   final ok = await ApiClient()
-                      .putMultiAccountRepeatNewPublicAccountValue(
+                      .putMultiAccountRepeatNewFixedPublicAccountValue(
                         scriptName: widget.scriptName,
                         identifier: currentIdentifier,
                         field: field.$1,
@@ -875,9 +1016,10 @@ class _MultiAccountRepeatNewPanelState
   }
 
   Future<void> _showAddTaskAccount() async {
-    final library = await ApiClient().getMultiAccountRepeatNewPublicAccounts(
-      scriptName: widget.scriptName,
-    );
+    final library = await ApiClient()
+        .getMultiAccountRepeatNewFixedPublicAccounts(
+          scriptName: widget.scriptName,
+        );
     final state = await _stateFuture;
     if (!mounted) return;
     final used = _maps(
@@ -912,7 +1054,7 @@ class _MultiAccountRepeatNewPanelState
       ),
     );
     if (selected == null) return;
-    if (await ApiClient().addMultiAccountRepeatNewAccount(
+    if (await ApiClient().addMultiAccountRepeatNewFixedAccount(
       scriptName: widget.scriptName,
       publicAccountIdentifier: selected,
     )) {
@@ -926,7 +1068,7 @@ class _MultiAccountRepeatNewPanelState
       '删除后会同时清除该账号下的任务及私有配置，是否继续？'.tr,
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewAccount(
+    if (await ApiClient().deleteMultiAccountRepeatNewFixedAccount(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
     )) {
@@ -941,7 +1083,7 @@ class _MultiAccountRepeatNewPanelState
       initialTime: const TimeOfDay(hour: 9, minute: 0),
     );
     if (time == null) return;
-    if (await ApiClient().addMultiAccountRepeatNewFixedTimeBatch(
+    if (await ApiClient().addMultiAccountRepeatNewFixedFixedTimeBatch(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       runTime: _formatTimeOfDay(time),
@@ -950,25 +1092,193 @@ class _MultiAccountRepeatNewPanelState
     }
   }
 
+  String _batchScheduleLabel(Map<String, dynamic> batch) {
+    final runTime = '${batch['run_time'] ?? '--:--'}';
+    final mode = '${batch['schedule_mode'] ?? 'daily'}';
+    if (mode == 'interval') {
+      final interval = batch['interval_days'] as int? ?? 1;
+      return '每隔$interval天 · $runTime';
+    }
+    if (mode == 'weekday') {
+      final weekdays = (batch['weekdays'] as List? ?? const [])
+          .map((value) => int.tryParse('$value'))
+          .whereType<int>()
+          .toList();
+      return '${_weekdaysLabel(weekdays)} · $runTime';
+    }
+    return '每天 · $runTime';
+  }
+
+  String _weekdaysLabel(Iterable<int> weekdays) {
+    const labels = {
+      1: '周一',
+      2: '周二',
+      3: '周三',
+      4: '周四',
+      5: '周五',
+      6: '周六',
+      7: '周日',
+    };
+    final values = weekdays.where(labels.containsKey).toList()..sort();
+    return values.isEmpty ? '未选择星期' : values.map((day) => labels[day]).join('、');
+  }
+
   Future<void> _editFixedTimeBatchTime(
     int accountIndex,
     Map<String, dynamic> batch,
   ) async {
     final batchId = '${batch['batch_id'] ?? ''}';
     if (batchId.isEmpty) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: _parseTimeOfDay('${batch['run_time'] ?? '09:00'}'),
-    );
-    if (time == null) return;
-    if (await ApiClient().setMultiAccountRepeatNewFixedTimeBatchRunTime(
-      scriptName: widget.scriptName,
-      accountIndex: accountIndex,
-      batchId: batchId,
-      runTime: _formatTimeOfDay(time),
-    )) {
-      _reload();
+    var selectedTime = _parseTimeOfDay('${batch['run_time'] ?? '09:00'}');
+    var scheduleMode = '${batch['schedule_mode'] ?? 'daily'}';
+    if (!{'daily', 'interval', 'weekday'}.contains(scheduleMode)) {
+      scheduleMode = 'daily';
     }
+    final intervalController = TextEditingController(
+      text: '${batch['interval_days'] ?? 1}',
+    );
+    final selectedWeekdays = <int>{
+      for (final value in (batch['weekdays'] as List? ?? const []))
+        if (int.tryParse('$value') case final day? when day >= 1 && day <= 7)
+          day,
+    };
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('固定时间运行规则'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('运行时间', style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final value = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (value != null) {
+                        setDialogState(() => selectedTime = value);
+                      }
+                    },
+                    icon: const Icon(Icons.schedule_rounded, size: 18),
+                    label: Text(_formatTimeOfDay(selectedTime)),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('运行周期', style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: '选择运行周期',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: scheduleMode,
+                        items: const [
+                          DropdownMenuItem(value: 'daily', child: Text('每天运行')),
+                          DropdownMenuItem(value: 'interval', child: Text('按间隔天数运行')),
+                          DropdownMenuItem(value: 'weekday', child: Text('指定星期运行')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setDialogState(() => scheduleMode = value);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (scheduleMode == 'interval')
+                    TextField(
+                      controller: intervalController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '间隔天数（1-365）',
+                        helperText: '例如 2 表示本次完成后两天再运行。',
+                      ),
+                    ),
+                  if (scheduleMode == 'weekday')
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4, bottom: 4),
+                      child: Text('仅在选择的星期到达上述时间后运行。'),
+                    ),
+                  if (scheduleMode == 'weekday')
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        for (final item in const [
+                          (1, '周一'),
+                          (2, '周二'),
+                          (3, '周三'),
+                          (4, '周四'),
+                          (5, '周五'),
+                          (6, '周六'),
+                          (7, '周日'),
+                        ])
+                          FilterChip(
+                            label: Text(item.$2),
+                            selected: selectedWeekdays.contains(item.$1),
+                            onSelected: (selected) => setDialogState(() {
+                              if (selected) {
+                                selectedWeekdays.add(item.$1);
+                              } else {
+                                selectedWeekdays.remove(item.$1);
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(I18n.cancel.tr),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final intervalDays = int.tryParse(intervalController.text) ?? 0;
+                if (scheduleMode == 'interval' &&
+                    (intervalDays < 1 || intervalDays > 365)) {
+                  Get.snackbar(I18n.tip.tr, '间隔天数必须在 1 到 365 之间');
+                  return;
+                }
+                if (scheduleMode == 'weekday' && selectedWeekdays.isEmpty) {
+                  Get.snackbar(I18n.tip.tr, '请至少选择一个星期');
+                  return;
+                }
+                final ok = await ApiClient()
+                    .setMultiAccountRepeatNewFixedFixedTimeBatchSchedule(
+                      scriptName: widget.scriptName,
+                      accountIndex: accountIndex,
+                      batchId: batchId,
+                      runTime: _formatTimeOfDay(selectedTime),
+                      scheduleMode: scheduleMode,
+                      intervalDays: intervalDays.clamp(1, 365),
+                      weekdays: selectedWeekdays.toList()..sort(),
+                    );
+                if (ok && dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop(true);
+                }
+              },
+              child: Text(I18n.confirm.tr),
+            ),
+          ],
+        ),
+      ),
+    );
+    intervalController.dispose();
+    if (saved == true) _reload();
   }
 
   TimeOfDay _parseTimeOfDay(String value) {
@@ -987,7 +1297,7 @@ class _MultiAccountRepeatNewPanelState
       '删除后会一并删除该批次的任务、私有配置和运行记录，是否继续？',
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewFixedTimeBatch(
+    if (await ApiClient().deleteMultiAccountRepeatNewFixedFixedTimeBatch(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -1099,9 +1409,10 @@ class _MultiAccountRepeatNewPanelState
     String batchId,
     List<Map<String, dynamic>> existingTasks,
   ) async {
-    final catalog = await ApiClient().getMultiAccountRepeatNewFixedTimeTasks(
-      scriptName: widget.scriptName,
-    );
+    final catalog = await ApiClient()
+        .getMultiAccountRepeatNewFixedFixedTimeTasks(
+          scriptName: widget.scriptName,
+        );
     if (!mounted) return;
     final existing = existingTasks
         .map((task) => '${task['task_name'] ?? ''}'.trim())
@@ -1190,12 +1501,13 @@ class _MultiAccountRepeatNewPanelState
     searchController.dispose();
     if (selectedTasks == null || selectedTasks.isEmpty) return;
     for (final taskName in selectedTasks) {
-      final ok = await ApiClient().addMultiAccountRepeatNewFixedTimeBatchTask(
-        scriptName: widget.scriptName,
-        accountIndex: accountIndex,
-        batchId: batchId,
-        taskName: taskName,
-      );
+      final ok = await ApiClient()
+          .addMultiAccountRepeatNewFixedFixedTimeBatchTask(
+            scriptName: widget.scriptName,
+            accountIndex: accountIndex,
+            batchId: batchId,
+            taskName: taskName,
+          );
       if (!ok) return;
     }
     _reload();
@@ -1206,7 +1518,7 @@ class _MultiAccountRepeatNewPanelState
     String batchId,
     String taskName,
   ) async {
-    if (await ApiClient().deleteMultiAccountRepeatNewFixedTimeBatchTask(
+    if (await ApiClient().deleteMultiAccountRepeatNewFixedFixedTimeBatchTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -1223,7 +1535,7 @@ class _MultiAccountRepeatNewPanelState
     String taskDisplayName,
   ) async {
     final data = await ApiClient()
-        .getMultiAccountRepeatNewFixedTimeBatchTaskArgs(
+        .getMultiAccountRepeatNewFixedFixedTimeBatchTaskArgs(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
           batchId: batchId,
@@ -1237,7 +1549,7 @@ class _MultiAccountRepeatNewPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewFixedTimeBatchTaskArg(
+        return ApiClient().putMultiAccountRepeatNewFixedFixedTimeBatchTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           batchId: batchId,
@@ -1267,7 +1579,7 @@ class _MultiAccountRepeatNewPanelState
                       tooltip: '恢复默认配置'.tr,
                       onPressed: () async {
                         final ok = await ApiClient()
-                            .resetMultiAccountRepeatNewFixedTimeBatchTaskPrivateConfigToDefault(
+                            .resetMultiAccountRepeatNewFixedFixedTimeBatchTaskPrivateConfigToDefault(
                               scriptName: widget.scriptName,
                               accountIndex: accountIndex,
                               batchId: batchId,
@@ -1311,9 +1623,10 @@ class _MultiAccountRepeatNewPanelState
   Future<void> _showAddTaskDialog(int accountIndex) async {
     // 使用后端提供的可执行任务目录，任务名与已添加记录均为统一的下划线格式。
     // 这样已添加任务能被正确识别并禁用，避免重复选择。
-    final catalog = await ApiClient().getMultiAccountRepeatNewFixedTimeTasks(
-      scriptName: widget.scriptName,
-    );
+    final catalog = await ApiClient()
+        .getMultiAccountRepeatNewFixedFixedTimeTasks(
+          scriptName: widget.scriptName,
+        );
     final state = await _stateFuture;
     if (!mounted) return;
     final account = _maps(state['accounts']).firstWhere(
@@ -1408,7 +1721,7 @@ class _MultiAccountRepeatNewPanelState
     searchController.dispose();
     if (selectedTasks == null || selectedTasks.isEmpty) return;
     for (final taskName in selectedTasks) {
-      final ok = await ApiClient().addMultiAccountRepeatNewTask(
+      final ok = await ApiClient().addMultiAccountRepeatNewFixedTask(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
         taskName: taskName,
@@ -1421,7 +1734,7 @@ class _MultiAccountRepeatNewPanelState
   Future<void> _deleteTask(int accountIndex, String taskName) async {
     final confirmed = await _confirm('删除任务'.tr, '删除后会同时清除该账号任务的私有配置，是否继续？'.tr);
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewTask(
+    if (await ApiClient().deleteMultiAccountRepeatNewFixedTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1431,18 +1744,18 @@ class _MultiAccountRepeatNewPanelState
   }
 
   Future<void> _showPublicSettings() async {
-    final data = await ApiClient().getMultiAccountRepeatNewPublicArgs(
+    final data = await ApiClient().getMultiAccountRepeatNewFixedPublicArgs(
       scriptName: widget.scriptName,
     );
     if (!mounted || data.isEmpty) return;
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountRepeatNew',
+      task: 'MultiAccountRepeatNewFixed',
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewPublicArg(
+        return ApiClient().putMultiAccountRepeatNewFixedPublicArg(
           scriptName: config,
           groupName: group,
           argumentName: argument,
@@ -1452,7 +1765,7 @@ class _MultiAccountRepeatNewPanelState
       },
     );
     if (!mounted) return;
-    await _showArgsDialog(args, '多账号多任务新公共配置'.tr);
+    await _showArgsDialog(args, '多账号多任务新固定时间公共配置'.tr);
   }
 
   Future<void> _showTaskSettings(
@@ -1461,7 +1774,7 @@ class _MultiAccountRepeatNewPanelState
     String taskDisplayName,
   ) async {
     setState(() => _loadingTasks.add(taskName));
-    final data = await ApiClient().getMultiAccountRepeatNewTaskArgs(
+    final data = await ApiClient().getMultiAccountRepeatNewFixedTaskArgs(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1477,7 +1790,7 @@ class _MultiAccountRepeatNewPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewTaskArg(
+        return ApiClient().putMultiAccountRepeatNewFixedTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           taskName: task,
@@ -1505,7 +1818,7 @@ class _MultiAccountRepeatNewPanelState
                       tooltip: '恢复默认配置'.tr,
                       onPressed: () async {
                         final ok = await ApiClient()
-                            .resetMultiAccountRepeatNewTaskPrivateConfig(
+                            .resetMultiAccountRepeatNewFixedTaskPrivateConfig(
                               scriptName: widget.scriptName,
                               accountIndex: accountIndex,
                               taskName: taskName,
@@ -1628,7 +1941,7 @@ class _MultiAccountRepeatNewPanelState
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
     final success = await ApiClient()
-        .copyMultiAccountRepeatNewTaskPrivateConfig(
+        .copyMultiAccountRepeatNewFixedTaskPrivateConfig(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
           taskName: taskName,
@@ -1659,7 +1972,7 @@ class _MultiAccountRepeatNewPanelState
               Expanded(
                 child: Args(
                   scriptName: widget.scriptName,
-                  taskName: 'MultiAccountRepeatNew',
+                  taskName: 'MultiAccountRepeatNewFixed',
                   stagingMode: true,
                   onCancel: () async {
                     if (dialogContext.mounted) {
@@ -1727,7 +2040,7 @@ class _MultiAccountRepeatNewPanelState
   void _reload() {
     if (!mounted) return;
     setState(() {
-      _stateFuture = ApiClient().getMultiAccountRepeatNewAccounts(
+      _stateFuture = ApiClient().getMultiAccountRepeatNewFixedAccounts(
         scriptName: widget.scriptName,
       );
     });

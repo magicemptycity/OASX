@@ -352,6 +352,34 @@ extension HomeDashboardWorkspaceX on HomeDashboardController {
     return allSuccess;
   }
 
+  /// 对当前脚本中全部已启用的非运行中任务执行立即运行或立即等待。
+  Future<bool> quickScheduleAllTasks({
+    required ScriptModel model,
+    required bool runNow,
+  }) async {
+    final scriptName = model.name.trim();
+    if (scriptName.isEmpty) {
+      return false;
+    }
+    final isRunning = model.state.value == ScriptState.running;
+    final runningTaskName = model.runningTask.value.taskName.value.trim();
+    final taskNames = enabledTaskNamesFor(model).toList()..sort();
+    var allSuccess = true;
+    for (final taskName in taskNames) {
+      // 正在执行的任务不改动其调度时间，避免干扰当前运行。
+      if (isRunning && taskName == runningTaskName) {
+        continue;
+      }
+      final success = await quickScheduleTask(
+        scriptName: scriptName,
+        taskName: taskName,
+        runNow: runNow,
+      );
+      allSuccess = success && allSuccess;
+    }
+    return allSuccess;
+  }
+
   Future<bool> quickScheduleTask({
     required String scriptName,
     required String taskName,
