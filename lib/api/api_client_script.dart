@@ -45,381 +45,6 @@ extension ApiClientScriptX on ApiClient {
 }
 
 /// 多账号多任务新专属接口；不调用旧多账号多任务的任何路由。
-extension ApiClientMultiAccountRepeatNewX on ApiClient {
-  Future<Map<String, dynamic>> getMultiAccountRepeatNewPublicAccounts({
-    required String scriptName,
-  }) async {
-    final res = await request(() => get('/$scriptName/shared-accounts'));
-    return res.isSuccess && res.data is Map
-        ? (res.data as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
-  }
-
-  Future<bool> copyMultiAccountSharedAccounts({
-    required String sourceScriptName,
-    required List<String> identifiers,
-    required List<String> targetScriptNames,
-  }) async {
-    if (identifiers.isEmpty || targetScriptNames.isEmpty) return false;
-    final res = await request(
-      () => post(
-        '/$sourceScriptName/shared-accounts/copy',
-        queryParameters: {
-          'identifiers': identifiers.join(','),
-          'target_script_names': targetScriptNames.join(','),
-        },
-      ),
-    );
-    return res.isSuccess;
-  }
-  Future<bool> addMultiAccountRepeatNewPublicAccount({
-    required String scriptName,
-    required String identifier,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/shared-accounts',
-        queryParameters: {'identifier': identifier},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> putMultiAccountRepeatNewPublicAccountValue({
-    required String scriptName,
-    required String identifier,
-    required String field,
-    required String type,
-    required dynamic value,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/shared-accounts/$identifier/$field/value',
-        queryParameters: {'types': type, 'value': value},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewPublicAccount({
-    required String scriptName,
-    required String identifier,
-  }) async {
-    final res = await request(
-      () => delete('/$scriptName/shared-accounts/$identifier'),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<Map<String, dynamic>> getMultiAccountRepeatNewAccounts({
-    required String scriptName,
-  }) async {
-    final res = await request(
-      () => get('/$scriptName/multi_account_repeat_new/accounts'),
-    );
-    return res.isSuccess && res.data is Map
-        ? (res.data as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
-  }
-
-  Future<List<Map<String, dynamic>>> getMultiAccountRepeatNewFixedTimeTasks({
-    required String scriptName,
-  }) async {
-    final res = await request(
-      () => get('/$scriptName/multi_account_repeat_new/fixed-time-tasks'),
-    );
-    if (!res.isSuccess || res.data is! Map) return <Map<String, dynamic>>[];
-    final tasks = (res.data as Map)['tasks'];
-    return tasks is List
-        ? tasks
-              .whereType<Map>()
-              .map((item) => item.cast<String, dynamic>())
-              .toList()
-        : <Map<String, dynamic>>[];
-  }
-
-  Future<bool> addMultiAccountRepeatNewFixedTimeBatch({
-    required String scriptName,
-    required int accountIndex,
-    required String runTime,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches',
-        queryParameters: {'run_time': runTime},
-      ),
-    );
-    return res.isSuccess;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewFixedTimeBatch({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-  }) async {
-    final res = await request(
-      () => delete(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> setMultiAccountRepeatNewFixedTimeBatchEnable({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required bool enable,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/enable',
-        queryParameters: {'value': enable},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> setMultiAccountRepeatNewFixedTimeBatchRunTime({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String runTime,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/run-time',
-        queryParameters: {'value': runTime},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> addMultiAccountRepeatNewFixedTimeBatchTask({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/tasks',
-        queryParameters: {'task_name': taskName},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewFixedTimeBatchTask({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => delete(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<Map<String, dynamic>> getMultiAccountRepeatNewFixedTimeBatchTaskArgs({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => get(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/args',
-      ),
-    );
-    return res.isSuccess && res.data is Map
-        ? (res.data as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
-  }
-
-  Future<bool> putMultiAccountRepeatNewFixedTimeBatchTaskArg({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-    required String groupName,
-    required String argumentName,
-    required String type,
-    required dynamic value,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/$groupName/$argumentName/value',
-        queryParameters: {'types': type, 'value': value},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool>
-  resetMultiAccountRepeatNewFixedTimeBatchTaskPrivateConfigToDefault({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/private/default',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> addMultiAccountRepeatNewAccount({
-    required String scriptName,
-    required String publicAccountIdentifier,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new/accounts',
-        queryParameters: {'public_account_identifier': publicAccountIdentifier},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewAccount({
-    required String scriptName,
-    required int accountIndex,
-  }) async {
-    final res = await request(
-      () => delete(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> addMultiAccountRepeatNewTask({
-    required String scriptName,
-    required int accountIndex,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/tasks',
-        queryParameters: {'task_name': taskName},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewTask({
-    required String scriptName,
-    required int accountIndex,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => delete(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/tasks/$taskName',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<Map<String, dynamic>> getMultiAccountRepeatNewPublicArgs({
-    required String scriptName,
-  }) async {
-    final res = await request(
-      () => get('/$scriptName/multi_account_repeat_new/public-args'),
-    );
-    return res.isSuccess && res.data is Map
-        ? (res.data as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
-  }
-
-  Future<bool> putMultiAccountRepeatNewPublicArg({
-    required String scriptName,
-    required String groupName,
-    required String argumentName,
-    required String type,
-    required dynamic value,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/public-args/$groupName/$argumentName/value',
-        queryParameters: {'types': type, 'value': value},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<Map<String, dynamic>> getMultiAccountRepeatNewTaskArgs({
-    required String scriptName,
-    required int accountIndex,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => get(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/tasks/$taskName/args',
-      ),
-    );
-    return res.isSuccess && res.data is Map
-        ? (res.data as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
-  }
-
-  Future<bool> putMultiAccountRepeatNewTaskArg({
-    required String scriptName,
-    required int accountIndex,
-    required String taskName,
-    required String groupName,
-    required String argumentName,
-    required String type,
-    required dynamic value,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/tasks/$taskName/$groupName/$argumentName/value',
-        queryParameters: {'types': type, 'value': value},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> copyMultiAccountRepeatNewTaskPrivateConfig({
-    required String scriptName,
-    required int accountIndex,
-    required String taskName,
-    required List<int> targetAccountIndexes,
-  }) async {
-    if (targetAccountIndexes.isEmpty) return false;
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/tasks/$taskName/private/copy',
-        queryParameters: {
-          'target_account_indexes': targetAccountIndexes.join(','),
-        },
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> resetMultiAccountRepeatNewTaskPrivateConfig({
-    required String scriptName,
-    required int accountIndex,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new/accounts/$accountIndex/tasks/$taskName/private/default',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-}
-
-/// 多账号多任务定时专属接口；不调用旧多账号多任务的任何路由。
-/// 多账号多任务新普通专属接口；不调用旧多账号多任务的任何路由。
 extension ApiClientMultiAccountRepeatNewNormalX on ApiClient {
   Future<Map<String, dynamic>> getMultiAccountRepeatNewNormalPublicAccounts({
     required String scriptName,
@@ -480,161 +105,6 @@ extension ApiClientMultiAccountRepeatNewNormalX on ApiClient {
         : <String, dynamic>{};
   }
 
-  Future<List<Map<String, dynamic>>>
-  getMultiAccountRepeatNewNormalFixedTimeTasks({
-    required String scriptName,
-  }) async {
-    final res = await request(
-      () =>
-          get('/$scriptName/multi_account_repeat_new_normal/fixed-time-tasks'),
-    );
-    if (!res.isSuccess || res.data is! Map) return <Map<String, dynamic>>[];
-    final tasks = (res.data as Map)['tasks'];
-    return tasks is List
-        ? tasks
-              .whereType<Map>()
-              .map((item) => item.cast<String, dynamic>())
-              .toList()
-        : <Map<String, dynamic>>[];
-  }
-
-  Future<bool> addMultiAccountRepeatNewNormalFixedTimeBatch({
-    required String scriptName,
-    required int accountIndex,
-    required String runTime,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches',
-        queryParameters: {'run_time': runTime},
-      ),
-    );
-    return res.isSuccess;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewNormalFixedTimeBatch({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-  }) async {
-    final res = await request(
-      () => delete(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> setMultiAccountRepeatNewNormalFixedTimeBatchEnable({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required bool enable,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/enable',
-        queryParameters: {'value': enable},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> setMultiAccountRepeatNewNormalFixedTimeBatchRunTime({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String runTime,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/run-time',
-        queryParameters: {'value': runTime},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> addMultiAccountRepeatNewNormalFixedTimeBatchTask({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => post(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/tasks',
-        queryParameters: {'task_name': taskName},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool> deleteMultiAccountRepeatNewNormalFixedTimeBatchTask({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => delete(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<Map<String, dynamic>>
-  getMultiAccountRepeatNewNormalFixedTimeBatchTaskArgs({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => get(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/args',
-      ),
-    );
-    return res.isSuccess && res.data is Map
-        ? (res.data as Map).cast<String, dynamic>()
-        : <String, dynamic>{};
-  }
-
-  Future<bool> putMultiAccountRepeatNewNormalFixedTimeBatchTaskArg({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-    required String groupName,
-    required String argumentName,
-    required String type,
-    required dynamic value,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/$groupName/$argumentName/value',
-        queryParameters: {'types': type, 'value': value},
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
-  Future<bool>
-  resetMultiAccountRepeatNewNormalFixedTimeBatchTaskPrivateConfigToDefault({
-    required String scriptName,
-    required int accountIndex,
-    required String batchId,
-    required String taskName,
-  }) async {
-    final res = await request(
-      () => put(
-        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/private/default',
-      ),
-    );
-    return res.isSuccess && res.data == true;
-  }
-
   Future<bool> addMultiAccountRepeatNewNormalAccount({
     required String scriptName,
     required String publicAccountIdentifier,
@@ -674,6 +144,35 @@ extension ApiClientMultiAccountRepeatNewNormalX on ApiClient {
     return res.isSuccess && res.data == true;
   }
 
+  Future<bool> setMultiAccountRepeatNewNormalTaskEnable({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required bool enable,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/tasks/$taskName/enable',
+        queryParameters: {'value': enable},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> reorderMultiAccountRepeatNewNormalTasks({
+    required String scriptName,
+    required int accountIndex,
+    required List<String> taskNames,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/tasks/order',
+        queryParameters: {'task_names': taskNames.join('\n')},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
   Future<bool> deleteMultiAccountRepeatNewNormalTask({
     required String scriptName,
     required int accountIndex,
@@ -682,6 +181,67 @@ extension ApiClientMultiAccountRepeatNewNormalX on ApiClient {
     final res = await request(
       () => delete(
         '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/tasks/$taskName',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatNewNormalTaskStatus({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required String status,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/tasks/$taskName/status',
+        queryParameters: {'value': status},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatNewNormalTaskProgress({
+    required String scriptName,
+    required int accountIndex,
+    required String completedTaskList,
+    required String failedTaskList,
+    required String unfinishedTaskList,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/task-progress',
+        queryParameters: {
+          'completed_task_list': completedTaskList,
+          'failed_task_list': failedTaskList,
+          'unfinished_task_list': unfinishedTaskList,
+        },
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatNewNormalLastCompleteTime({
+    required String scriptName,
+    required int accountIndex,
+    required String value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/last-complete-time',
+        queryParameters: {'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> rerunMultiAccountRepeatNewNormalAccount({
+    required String scriptName,
+    required int accountIndex,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/rerun',
       ),
     );
     return res.isSuccess && res.data == true;
@@ -861,12 +421,16 @@ extension ApiClientMultiAccountRepeatNewFixedX on ApiClient {
   Future<bool> addMultiAccountRepeatNewFixedFixedTimeBatch({
     required String scriptName,
     required int accountIndex,
-    required String runTime,
+    required String name,
+    String? runTime,
   }) async {
     final res = await request(
       () => post(
         '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches',
-        queryParameters: {'run_time': runTime},
+        queryParameters: {
+          'name': name,
+          if (runTime != null) 'run_time': runTime,
+        },
       ),
     );
     return res.isSuccess;
@@ -902,6 +466,7 @@ extension ApiClientMultiAccountRepeatNewFixedX on ApiClient {
     );
     return res.isSuccess && res.data == true;
   }
+
   Future<bool> setMultiAccountRepeatNewFixedFixedTimeBatchEnable({
     required String scriptName,
     required int accountIndex,
@@ -955,6 +520,113 @@ extension ApiClientMultiAccountRepeatNewFixedX on ApiClient {
     return res.isSuccess && res.data == true;
   }
 
+  Future<Map<String, dynamic>>
+  getMultiAccountRepeatNewFixedFixedTimeBatchSchedulerArgs({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+  }) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/scheduler/args',
+      ),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> putMultiAccountRepeatNewFixedFixedTimeBatchSchedulerArg({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String argumentName,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/scheduler/$argumentName/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> quickScheduleMultiAccountRepeatNewFixedSpecialTask({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required bool runNow,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/quick-schedule',
+        queryParameters: {'run_now': runNow.toString()},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> rerunMultiAccountRepeatNewFixedSpecialTask({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/rerun',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatNewFixedSpecialTaskLastCompleteTime({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/last-complete-time',
+        queryParameters: {'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> reorderMultiAccountRepeatNewFixedSpecialTaskTasks({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required List<String> taskNames,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/order',
+        queryParameters: {'task_names': taskNames.join('\n')},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatNewFixedSpecialTaskTaskStatus({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+    required String status,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/status',
+        queryParameters: {'value': status},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
   Future<bool> addMultiAccountRepeatNewFixedFixedTimeBatchTask({
     required String scriptName,
     required int accountIndex,
@@ -965,6 +637,22 @@ extension ApiClientMultiAccountRepeatNewFixedX on ApiClient {
       () => post(
         '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/tasks',
         queryParameters: {'task_name': taskName},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatNewFixedFixedTimeBatchTaskEnable({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+    required bool enable,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/enable',
+        queryParameters: {'value': enable},
       ),
     );
     return res.isSuccess && res.data == true;
@@ -1179,6 +867,584 @@ extension ApiClientMultiAccountRepeatNewFixedX on ApiClient {
   }
 }
 
+/// 多账号任务编排专属接口：账号下多个原生 Scheduler 的顺序任务组。
+/// 通用公共账号库跨脚本复制。
+extension ApiClientMultiAccountSharedAccountsX on ApiClient {
+  Future<bool> copyMultiAccountSharedAccounts({
+    required String sourceScriptName,
+    required List<String> identifiers,
+    required List<String> targetScriptNames,
+  }) async {
+    if (identifiers.isEmpty || targetScriptNames.isEmpty) return false;
+    final res = await request(
+      () => post(
+        '/$sourceScriptName/shared-accounts/copy',
+        queryParameters: {
+          'identifiers': identifiers.join(','),
+          'target_script_names': targetScriptNames.join(','),
+        },
+      ),
+    );
+    return res.isSuccess;
+  }
+}
+
+extension ApiClientMultiAccountTaskOrchestrationX on ApiClient {
+  Future<Map<String, dynamic>> getMultiAccountTaskOrchestrationPublicAccounts({
+    required String scriptName,
+  }) async {
+    final res = await request(() => get('/$scriptName/shared-accounts'));
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> addMultiAccountTaskOrchestrationPublicAccount({
+    required String scriptName,
+    required String identifier,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/shared-accounts',
+        queryParameters: {'identifier': identifier},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> putMultiAccountTaskOrchestrationPublicAccountValue({
+    required String scriptName,
+    required String identifier,
+    required String field,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/shared-accounts/$identifier/$field/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> deleteMultiAccountTaskOrchestrationPublicAccount({
+    required String scriptName,
+    required String identifier,
+  }) async {
+    final res = await request(
+      () => delete('/$scriptName/shared-accounts/$identifier'),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<Map<String, dynamic>> getMultiAccountTaskOrchestrationAccounts({
+    required String scriptName,
+  }) async {
+    final res = await request(
+      () => get('/$scriptName/multi_account_task_orchestration/accounts'),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<List<Map<String, dynamic>>>
+  getMultiAccountTaskOrchestrationFixedTimeTasks({
+    required String scriptName,
+  }) async {
+    final res = await request(
+      () =>
+          get('/$scriptName/multi_account_task_orchestration/fixed-time-tasks'),
+    );
+    if (!res.isSuccess || res.data is! Map) return <Map<String, dynamic>>[];
+    final tasks = (res.data as Map)['tasks'];
+    return tasks is List
+        ? tasks
+              .whereType<Map>()
+              .map((item) => item.cast<String, dynamic>())
+              .toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  Future<bool> addMultiAccountTaskOrchestrationFixedTimeBatch({
+    required String scriptName,
+    required int accountIndex,
+    required String name,
+    String? runTime,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches',
+        queryParameters: {
+          'name': name,
+          if (runTime != null) 'run_time': runTime,
+        },
+      ),
+    );
+    return res.isSuccess;
+  }
+
+  Future<bool> deleteMultiAccountTaskOrchestrationFixedTimeBatch({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+  }) async {
+    final res = await request(
+      () => delete(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> copyMultiAccountTaskOrchestrationFixedTimeBatch({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required List<int> targetAccountIndexes,
+  }) async {
+    if (targetAccountIndexes.isEmpty) return false;
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/copy',
+        queryParameters: {
+          'target_account_indexes': targetAccountIndexes.join(','),
+        },
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountTaskOrchestrationFixedTimeBatchEnable({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required bool enable,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/enable',
+        queryParameters: {'value': enable},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountTaskOrchestrationFixedTimeBatchRunTime({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String runTime,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/run-time',
+        queryParameters: {'value': runTime},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountTaskOrchestrationFixedTimeBatchSchedule({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String runTime,
+    required String scheduleMode,
+    required int intervalDays,
+    required List<int> weekdays,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/schedule',
+        queryParameters: {
+          'run_time': runTime,
+          'schedule_mode': scheduleMode,
+          'interval_days': intervalDays,
+          'weekdays': weekdays.join(','),
+        },
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<Map<String, dynamic>>
+  getMultiAccountTaskOrchestrationFixedTimeBatchSchedulerArgs({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+  }) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/scheduler/args',
+      ),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> putMultiAccountTaskOrchestrationFixedTimeBatchSchedulerArg({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String argumentName,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/scheduler/$argumentName/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> quickScheduleMultiAccountTaskOrchestrationSpecialTask({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required bool runNow,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/quick-schedule',
+        queryParameters: {'run_now': runNow.toString()},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> rerunMultiAccountTaskOrchestrationSpecialTask({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/rerun',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountTaskOrchestrationSpecialTaskLastCompleteTime({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/last-complete-time',
+        queryParameters: {'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> reorderMultiAccountTaskOrchestrationSpecialTaskTasks({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required List<String> taskNames,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/order',
+        queryParameters: {'task_names': taskNames.join('\n')},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountTaskOrchestrationSpecialTaskTaskStatus({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+    required String status,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/status',
+        queryParameters: {'value': status},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> addMultiAccountTaskOrchestrationFixedTimeBatchTask({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks',
+        queryParameters: {'task_name': taskName},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+    required bool enable,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/enable',
+        queryParameters: {'value': enable},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> deleteMultiAccountTaskOrchestrationFixedTimeBatchTask({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => delete(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<Map<String, dynamic>>
+  getMultiAccountTaskOrchestrationFixedTimeBatchTaskArgs({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/args',
+      ),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> putMultiAccountTaskOrchestrationFixedTimeBatchTaskArg({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+    required String groupName,
+    required String argumentName,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/$groupName/$argumentName/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool>
+  resetMultiAccountTaskOrchestrationFixedTimeBatchTaskPrivateConfigToDefault({
+    required String scriptName,
+    required int accountIndex,
+    required String batchId,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/fixed-time-batches/$batchId/tasks/$taskName/private/default',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> addMultiAccountTaskOrchestrationAccount({
+    required String scriptName,
+    required String publicAccountIdentifier,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts',
+        queryParameters: {'public_account_identifier': publicAccountIdentifier},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> deleteMultiAccountTaskOrchestrationAccount({
+    required String scriptName,
+    required int accountIndex,
+  }) async {
+    final res = await request(
+      () => delete(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> addMultiAccountTaskOrchestrationTask({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/tasks',
+        queryParameters: {'task_name': taskName},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> addMultiAccountTaskOrchestrationSingleTask({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/single-tasks',
+        queryParameters: {'task_name': taskName},
+      ),
+    );
+    return res.isSuccess;
+  }
+
+  Future<bool> quickScheduleMultiAccountTaskOrchestrationSingleTask({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required bool runNow,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/single-tasks/$taskName/quick-schedule',
+        queryParameters: {'run_now': runNow.toString()},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> deleteMultiAccountTaskOrchestrationTask({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => delete(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/tasks/$taskName',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<Map<String, dynamic>> getMultiAccountTaskOrchestrationPublicArgs({
+    required String scriptName,
+  }) async {
+    final res = await request(
+      () => get('/$scriptName/multi_account_task_orchestration/public-args'),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> putMultiAccountTaskOrchestrationPublicArg({
+    required String scriptName,
+    required String groupName,
+    required String argumentName,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/public-args/$groupName/$argumentName/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<Map<String, dynamic>> getMultiAccountTaskOrchestrationTaskArgs({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/tasks/$taskName/args',
+      ),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> putMultiAccountTaskOrchestrationTaskArg({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required String groupName,
+    required String argumentName,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/tasks/$taskName/$groupName/$argumentName/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> copyMultiAccountTaskOrchestrationTaskPrivateConfig({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required List<int> targetAccountIndexes,
+  }) async {
+    if (targetAccountIndexes.isEmpty) return false;
+    final res = await request(
+      () => post(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/tasks/$taskName/private/copy',
+        queryParameters: {
+          'target_account_indexes': targetAccountIndexes.join(','),
+        },
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> resetMultiAccountTaskOrchestrationTaskPrivateConfig({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/tasks/$taskName/private/default',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+}
+
 /// 多账号多任务定时专属接口；不调用旧多账号多任务的任何路由。
 extension ApiClientMultiAccountRepeatTimedX on ApiClient {
   Future<Map<String, dynamic>> getMultiAccountRepeatTimedPublicAccounts({
@@ -1287,6 +1553,36 @@ extension ApiClientMultiAccountRepeatTimedX on ApiClient {
     final res = await request(
       () => delete(
         '/$scriptName/multi_account_repeat_timed/accounts/$accountIndex/tasks/$taskName',
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> quickScheduleMultiAccountRepeatTimedTask({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required bool runNow,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_timed/accounts/$accountIndex/tasks/$taskName/quick-schedule',
+        queryParameters: {'run_now': runNow.toString()},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountRepeatTimedTaskEnable({
+    required String scriptName,
+    required int accountIndex,
+    required String taskName,
+    required bool enable,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_timed/accounts/$accountIndex/tasks/$taskName/enable',
+        queryParameters: {'value': enable.toString()},
       ),
     );
     return res.isSuccess && res.data == true;
@@ -1449,6 +1745,62 @@ extension ApiClientMultiAccountKekkaiUtilizeNewX on ApiClient {
       () => put(
         '/$scriptName/$_base/public-args/$groupName/$argumentName/value',
         queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<Map<String, dynamic>> getMultiAccountKekkaiUtilizeNewSchedulerArgs({
+    required String scriptName,
+    required int accountIndex,
+  }) async {
+    final res = await request(
+      () => get('/$scriptName/$_base/accounts/$accountIndex/scheduler-args'),
+    );
+    return res.isSuccess && res.data is Map
+        ? (res.data as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+  }
+
+  Future<bool> putMultiAccountKekkaiUtilizeNewSchedulerArg({
+    required String scriptName,
+    required int accountIndex,
+    required String argumentName,
+    required String type,
+    required dynamic value,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/$_base/accounts/$accountIndex/scheduler-args/$argumentName/value',
+        queryParameters: {'types': type, 'value': value},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> quickScheduleMultiAccountKekkaiUtilizeNewAccount({
+    required String scriptName,
+    required int accountIndex,
+    required bool runNow,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/$_base/accounts/$accountIndex/quick-schedule',
+        queryParameters: {'run_now': runNow},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  Future<bool> setMultiAccountKekkaiUtilizeNewAccountEnable({
+    required String scriptName,
+    required int accountIndex,
+    required bool enable,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/$_base/accounts/$accountIndex/enable',
+        queryParameters: {'value': enable},
       ),
     );
     return res.isSuccess && res.data == true;

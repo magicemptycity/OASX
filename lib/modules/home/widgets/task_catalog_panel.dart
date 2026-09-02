@@ -6,9 +6,10 @@ import 'package:oasx/modules/common/models/config_drag_payload.dart';
 import 'package:oasx/modules/common/widgets/drag_copy_feedback.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
-import 'package:oasx/modules/home/widgets/split_scroll_row.dart';
+import 'package:oasx/modules/home/widgets/task_catalog_row_layout.dart';
+import 'package:oasx/modules/home/widgets/task_catalog_section_card.dart';
 import 'package:oasx/modules/home/widgets/task_parameter_panel.dart';
-import 'package:oasx/modules/home/widgets/multi_account_repeat_panel.dart';
+import 'package:oasx/modules/home/widgets/multi_account_task_orchestration_panel.dart';
 import 'package:oasx/modules/home/widgets/multi_account_repeat_timed_panel.dart';
 import 'package:oasx/modules/home/widgets/multi_account_repeat_normal_panel.dart';
 import 'package:oasx/modules/home/widgets/multi_account_repeat_fixed_panel.dart';
@@ -23,6 +24,11 @@ class TaskCatalogPanel extends StatefulWidget {
     required this.onOpenTask,
     required this.onQuickRun,
     required this.onQuickWait,
+    this.embedded = false,
+    this.isTaskEnabledOverride,
+    this.onToggleEnabledOverride,
+    this.canQuickScheduleOverride,
+    this.catalogGeneration = 0,
   });
 
   final HomeDashboardController controller;
@@ -30,6 +36,14 @@ class TaskCatalogPanel extends StatefulWidget {
   final Future<void> Function(String taskName) onOpenTask;
   final Future<void> Function(String taskName) onQuickRun;
   final Future<void> Function(String taskName) onQuickWait;
+
+  /// Reuses the exact OAS category UI inside composite task editors.
+  final bool embedded;
+  final bool Function(String taskName)? isTaskEnabledOverride;
+  final Future<bool> Function(String taskName, bool enable)?
+  onToggleEnabledOverride;
+  final bool Function(String taskName)? canQuickScheduleOverride;
+  final int catalogGeneration;
 
   @override
   State<TaskCatalogPanel> createState() => _TaskCatalogPanelState();
@@ -54,7 +68,8 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
   @override
   void didUpdateWidget(covariant TaskCatalogPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.scriptModel.name == widget.scriptModel.name) {
+    if (oldWidget.scriptModel.name == widget.scriptModel.name &&
+        oldWidget.catalogGeneration == widget.catalogGeneration) {
       return;
     }
     _enabledOverrides.clear();
@@ -74,12 +89,15 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
       final activeTask = widget.controller.activeTaskName.value.trim();
       final dragPayload = widget.controller.activeDragPayload.value;
       final quickScheduleLocked = widget.controller.isBulkQuickScheduling;
+      if (widget.embedded) {
+        return _buildTaskList(context, dragPayload, quickScheduleLocked);
+      }
       return IndexedStack(
         index: activeTask.isEmpty ? 0 : 1,
         children: [
           _buildTaskList(context, dragPayload, quickScheduleLocked),
-          activeTask == 'MultiAccountRepeatNew'
-              ? MultiAccountRepeatNewPanel(
+          activeTask == 'MultiAccountTaskOrchestration'
+              ? MultiAccountTaskOrchestrationPanel(
                   controller: widget.controller,
                   scriptModel: widget.scriptModel,
                   onBack: _handleBackFromParameters,
@@ -112,7 +130,8 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
                   controller: widget.controller,
                   scriptModel: widget.scriptModel,
                   onBack: _handleBackFromParameters,
-                ),        ],
+                ),
+        ],
       );
     });
   }
@@ -141,7 +160,9 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
               final enabledTaskNames = widget.controller.enabledTaskNamesFor(
                 widget.scriptModel,
               );
-              _syncEnabledOverrides(enabledTaskNames);
+              if (widget.isTaskEnabledOverride == null) {
+                _syncEnabledOverrides(enabledTaskNames);
+              }
               final sections = _sections(
                 snapshot.data ?? const <String, List<String>>{},
                 enabledTaskNames,
@@ -177,8 +198,12 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
                   onOpenTask: widget.onOpenTask,
                   onQuickRun: widget.onQuickRun,
                   onQuickWait: widget.onQuickWait,
-                  canQuickScheduleTask: (taskName) => widget.controller
-                      .canQuickScheduleTask(widget.scriptModel, taskName),
+                  canQuickScheduleTask: (taskName) =>
+                      widget.canQuickScheduleOverride?.call(taskName) ??
+                      widget.controller.canQuickScheduleTask(
+                        widget.scriptModel,
+                        taskName,
+                      ),
                   quickScheduleLocked: quickScheduleLocked,
                   dragEnabled: widget.controller.canUseDesktopDragCopy,
                   activeDragPayload: dragPayload,
@@ -248,7 +273,9 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
         }
         allTaskNames.add(taskName);
         final enabled =
-            _enabledOverrides[taskName] ?? enabledTaskNames.contains(taskName);
+            _enabledOverrides[taskName] ??
+            widget.isTaskEnabledOverride?.call(taskName) ??
+            enabledTaskNames.contains(taskName);
         if (!_matchesFilter(taskName, enabled)) {
           continue;
         }
@@ -352,11 +379,13 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
     setState(() {
       _togglingTasks.add(task.name);
     });
-    final ret = await widget.controller.quickToggleTaskEnabled(
-      scriptName: widget.scriptModel.name,
-      taskName: task.name,
-      enable: enable,
-    );
+    final ret =
+        await (widget.onToggleEnabledOverride?.call(task.name, enable) ??
+            widget.controller.quickToggleTaskEnabled(
+              scriptName: widget.scriptModel.name,
+              taskName: task.name,
+              enable: enable,
+            ));
     if (!mounted) {
       return;
     }
@@ -463,16 +492,11 @@ class _CatalogTaskRow extends StatelessWidget {
   final bool quickScheduleLocked;
   final bool dragEnabled;
   final ConfigDragPayload? activeDragPayload;
-  static const _actionExtent = 132.0;
-  static const _minRowHeight = 40.0;
 
   @override
   Widget build(BuildContext context) {
     final isDraggingTask =
         activeDragPayload?.matchesTask(sourceScriptName, task.name) ?? false;
-    final rowBackground = Theme.of(
-      context,
-    ).colorScheme.secondaryContainer.withValues(alpha: 0.18);
     final dragColor = Theme.of(
       context,
     ).colorScheme.primaryContainer.withValues(alpha: 0.42);
@@ -497,11 +521,23 @@ class _CatalogTaskRow extends StatelessWidget {
           color: isDraggingTask ? dragColor : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: SplitScrollRow(
+        child: TaskCatalogSplitRow(
           scrollKey: PageStorageKey<String>('task-row-scroll-${task.name}'),
-          minHeight: _minRowHeight,
-          trailingExtent: _actionExtent,
-          trailingBackgroundColor: rowBackground,
+          taskLabel: dragEnabled
+              ? Draggable<ConfigDragPayload>(
+                  data: payload,
+                  feedback: DragCopyFeedback(label: payload.displayLabel),
+                  onDragStarted: () => controller.startConfigDrag(payload),
+                  onDragCompleted: controller.clearConfigDrag,
+                  onDraggableCanceled: (_, __) => controller.clearConfigDrag(),
+                  onDragEnd: (_) => controller.clearConfigDrag(),
+                  child: nameLabel,
+                )
+              : nameLabel,
+          supportsEnable: supportsEnable,
+          enabled: task.enabled,
+          loading: loading,
+          onToggleEnabled: onToggleEnabled,
           trailing: _TaskIconBar(
             task: task,
             onOpenTask: onOpenTask,
@@ -510,73 +546,8 @@ class _CatalogTaskRow extends StatelessWidget {
             canQuickSchedule: canQuickScheduleTask(task.name),
             quickScheduleLocked: quickScheduleLocked,
           ),
-          leading: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (supportsEnable)
-                _EnableIcon(
-                  enabled: task.enabled,
-                  loading: loading,
-                  onTap: onToggleEnabled,
-                )
-              else
-                const SizedBox(width: 22, height: 22),
-              const SizedBox(width: 10),
-              dragEnabled
-                  ? Draggable<ConfigDragPayload>(
-                      data: payload,
-                      feedback: DragCopyFeedback(label: payload.displayLabel),
-                      onDragStarted: () => controller.startConfigDrag(payload),
-                      onDragCompleted: controller.clearConfigDrag,
-                      onDraggableCanceled: (_, __) =>
-                          controller.clearConfigDrag(),
-                      onDragEnd: (_) => controller.clearConfigDrag(),
-                      child: nameLabel,
-                    )
-                  : nameLabel,
-            ],
-          ),
         ),
       ),
-    );
-  }
-}
-
-class _EnableIcon extends StatelessWidget {
-  const _EnableIcon({
-    required this.enabled,
-    required this.loading,
-    required this.onTap,
-  });
-
-  final bool enabled;
-  final bool loading;
-  final ValueChanged<bool> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return SizedBox(
-        width: 22,
-        height: 22,
-        child: Padding(
-          padding: const EdgeInsets.all(2),
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-      );
-    }
-    final scheme = Theme.of(context).colorScheme;
-    final icon = enabled
-        ? Icons.check_circle_rounded
-        : Icons.radio_button_unchecked_rounded;
-    final color = enabled ? scheme.onSurface : scheme.onSurfaceVariant;
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: () => onTap(!enabled),
-      child: Icon(icon, color: color, size: 22),
     );
   }
 }
@@ -619,94 +590,44 @@ class _CatalogSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveExpanded = forceExpanded || expanded;
-    final scheme = Theme.of(context).colorScheme;
-    final cardColor = Theme.of(context).cardColor;
     final isDraggingGroup =
         activeDragPayload?.matchesTaskCatalogGroup(
           sourceScriptName,
           section.groupName,
         ) ??
         false;
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      color: isDraggingGroup
-          ? scheme.primaryContainer.withValues(alpha: 0.35)
-          : effectiveExpanded
-          ? cardColor
-          : scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+    return TaskCatalogSectionCard(
+      header: _CatalogSectionTitle(
+        controller: controller,
+        sourceScriptName: sourceScriptName,
+        section: section,
+        dragEnabled: dragEnabled,
+        activeDragPayload: activeDragPayload,
       ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: forceExpanded ? null : onToggleExpanded,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _CatalogSectionTitle(
-                      controller: controller,
-                      sourceScriptName: sourceScriptName,
-                      section: section,
-                      dragEnabled: dragEnabled,
-                      activeDragPayload: activeDragPayload,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    effectiveExpanded
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
-                  ),
-                ],
-              ),
-            ),
+      expanded: expanded,
+      forceExpanded: forceExpanded,
+      highlighted: isDraggingGroup,
+      onToggleExpanded: onToggleExpanded,
+      children: [
+        for (int index = 0; index < section.tasks.length; index++) ...[
+          if (index > 0) const Divider(height: 1),
+          _CatalogTaskRow(
+            controller: controller,
+            sourceScriptName: sourceScriptName,
+            task: section.tasks[index],
+            loading: togglingTasks.contains(section.tasks[index].name),
+            onToggleEnabled: (value) =>
+                onToggleEnabled(section.tasks[index], value),
+            onOpenTask: onOpenTask,
+            onQuickRun: onQuickRun,
+            onQuickWait: onQuickWait,
+            canQuickScheduleTask: canQuickScheduleTask,
+            quickScheduleLocked: quickScheduleLocked,
+            dragEnabled: dragEnabled,
+            activeDragPayload: activeDragPayload,
           ),
-          if (effectiveExpanded) ...[
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: scheme.outlineVariant.withValues(alpha: 0.45),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Column(
-                children: [
-                  for (
-                    int index = 0;
-                    index < section.tasks.length;
-                    index++
-                  ) ...[
-                    if (index > 0) const Divider(height: 1),
-                    _CatalogTaskRow(
-                      controller: controller,
-                      sourceScriptName: sourceScriptName,
-                      task: section.tasks[index],
-                      loading: togglingTasks.contains(
-                        section.tasks[index].name,
-                      ),
-                      onToggleEnabled: (value) =>
-                          onToggleEnabled(section.tasks[index], value),
-                      onOpenTask: onOpenTask,
-                      onQuickRun: onQuickRun,
-                      onQuickWait: onQuickWait,
-                      canQuickScheduleTask: canQuickScheduleTask,
-                      quickScheduleLocked: quickScheduleLocked,
-                      dragEnabled: dragEnabled,
-                      activeDragPayload: activeDragPayload,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
@@ -736,7 +657,7 @@ class _TaskIconBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showQuickActions)
-          _IconOnlyButton(
+          TaskCatalogIconOnlyButton(
             icon: Icons.flash_on_rounded,
             tooltip: I18n.homeQuickRun.tr,
             onPressed: task.enabled && canQuickSchedule && !quickScheduleLocked
@@ -744,41 +665,19 @@ class _TaskIconBar extends StatelessWidget {
                 : null,
           ),
         if (showQuickActions)
-          _IconOnlyButton(
+          TaskCatalogIconOnlyButton(
             icon: Icons.schedule_rounded,
             tooltip: I18n.homeQuickWait.tr,
             onPressed: task.enabled && canQuickSchedule && !quickScheduleLocked
                 ? () => onQuickWait(task.name)
                 : null,
           ),
-        _IconOnlyButton(
+        TaskCatalogIconOnlyButton(
           icon: Icons.tune_rounded,
           tooltip: I18n.homeOpenTaskParams.tr,
           onPressed: () => onOpenTask(task.name),
         ),
       ],
-    );
-  }
-}
-
-class _IconOnlyButton extends StatelessWidget {
-  const _IconOnlyButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-      onPressed: onPressed,
-      icon: Icon(icon),
     );
   }
 }

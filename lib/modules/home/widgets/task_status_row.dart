@@ -19,16 +19,130 @@ class TaskStatusViewData {
     required this.name,
     required this.type,
     this.timeText = '',
+    this.timeEditable = true,
+    this.displayName,
   });
 
   final String rowId;
   final String name;
   final TaskStatusType type;
   final String timeText;
+  final bool timeEditable;
+  final String? displayName;
 }
 
 /// Defines the three task states rendered in the overview tab.
 enum TaskStatusType { running, pending, waiting }
+
+/// Shared OAS overview-card shell used by task and account lists.
+class TaskOverviewRow extends StatelessWidget {
+  const TaskOverviewRow({
+    super.key,
+    required this.type,
+    required this.leading,
+    required this.trailing,
+    this.trailingExtent = 132,
+    this.swipeEnabled = false,
+    this.onConfirmDismiss,
+    this.onDismissed,
+    this.highlighted = false,
+  });
+
+  final TaskStatusType type;
+  final Widget leading;
+  final Widget trailing;
+  final double trailingExtent;
+  final bool swipeEnabled;
+  final Future<bool> Function()? onConfirmDismiss;
+  final VoidCallback? onDismissed;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final rowBackground = TaskOverviewCard.backgroundColor(context, type);
+    return TaskOverviewCard(
+      type: type,
+      swipeEnabled: swipeEnabled,
+      onConfirmDismiss: onConfirmDismiss,
+      onDismissed: onDismissed,
+      highlighted: highlighted,
+      child: SplitScrollRow(
+        minHeight: 40,
+        trailingExtent: trailingExtent,
+        trailingBackgroundColor: rowBackground,
+        trailing: trailing,
+        leading: leading,
+      ),
+    );
+  }
+}
+
+/// Shared OAS overview-card container.
+///
+/// Use this when a feature needs the exact overview card surface, padding and
+/// state colors but has its own inner layout instead of a task action row.
+class TaskOverviewCard extends StatelessWidget {
+  const TaskOverviewCard({
+    super.key,
+    required this.type,
+    required this.child,
+    this.swipeEnabled = false,
+    this.onConfirmDismiss,
+    this.onDismissed,
+    this.highlighted = false,
+  });
+
+  final TaskStatusType type;
+  final Widget child;
+  final bool swipeEnabled;
+  final Future<bool> Function()? onConfirmDismiss;
+  final VoidCallback? onDismissed;
+  final bool highlighted;
+
+  static Color backgroundColor(BuildContext context, TaskStatusType type) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (type) {
+      TaskStatusType.running => scheme.tertiaryContainer.withValues(
+        alpha: 0.24,
+      ),
+      TaskStatusType.pending => scheme.secondaryContainer.withValues(
+        alpha: 0.2,
+      ),
+      TaskStatusType.waiting => scheme.surfaceContainerHigh,
+    };
+  }
+
+  static Color borderColor(BuildContext context, TaskStatusType type) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (type) {
+      TaskStatusType.running => Colors.green.withValues(alpha: 0.28),
+      TaskStatusType.pending => Colors.orange.withValues(alpha: 0.3),
+      TaskStatusType.waiting => scheme.outlineVariant.withValues(alpha: 0.7),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final background = backgroundColor(context, type);
+    return TaskStatusSwipeContainer(
+      enabled: swipeEnabled && onConfirmDismiss != null,
+      onConfirmDismiss: onConfirmDismiss ?? () async => false,
+      onDismissed: onDismissed ?? () {},
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: highlighted
+              ? Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.42)
+              : background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor(context, type)),
+        ),
+        child: Padding(padding: const EdgeInsets.all(10), child: child),
+      ),
+    );
+  }
+}
 
 /// Renders one swipe-to-disable task row for the overview tab.
 class TaskStatusRow extends StatelessWidget {
@@ -39,6 +153,8 @@ class TaskStatusRow extends StatelessWidget {
     required this.task,
     required this.canQuickSchedule,
     required this.quickScheduleLocked,
+    this.showQuickActions = true,
+    this.leadingActions = const [],
     required this.onSetNextRun,
     required this.onQuickRun,
     required this.onQuickWait,
@@ -55,6 +171,12 @@ class TaskStatusRow extends StatelessWidget {
   final TaskStatusViewData task;
   final bool canQuickSchedule;
   final bool quickScheduleLocked;
+
+  /// Some account task types intentionally have no per-task scheduler.
+  final bool showQuickActions;
+
+  /// Feature-specific actions rendered immediately before quick-run actions.
+  final List<Widget> leadingActions;
   final Future<void> Function(String taskName, String nextRun) onSetNextRun;
   final Future<void> Function(String taskName) onQuickRun;
   final Future<void> Function(String taskName) onQuickWait;
@@ -68,85 +190,41 @@ class TaskStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rowBackground = _rowBackground(context);
-    return TaskStatusSwipeContainer(
-      enabled: swipeEnabled,
-      onConfirmDismiss: () => onDisableTask(task.name),
-      onDismissed: () => onDismissed(task.rowId),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _foregroundColor(context, rowBackground),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _borderColor(context)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: SplitScrollRow(
-            minHeight: 40,
-            trailingExtent: _actionExtent,
-            trailingBackgroundColor: rowBackground,
-            trailing: _TaskActionBar(
-              onQuickRun: !quickScheduleLocked && canQuickSchedule
-                  ? () => onQuickRun(task.name)
-                  : null,
-              onQuickWait: !quickScheduleLocked && canQuickSchedule
-                  ? () => onQuickWait(task.name)
-                  : null,
-              onEditTask: () => onEditTask(task.name),
-            ),
-            leading: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _TaskTypeIcon(type: task.type),
-                const SizedBox(width: 10),
-                _TaskMeta(
-                  controller: controller,
-                  sourceScriptName: sourceScriptName,
-                  task: task,
-                  onSetNextRun: onSetNextRun,
-                  dragEnabled: dragEnabled,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Resolves the row background by task bucket.
-  Color _rowBackground(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return switch (task.type) {
-      TaskStatusType.running => scheme.tertiaryContainer.withValues(
-        alpha: 0.24,
-      ),
-      TaskStatusType.pending => scheme.secondaryContainer.withValues(
-        alpha: 0.2,
-      ),
-      TaskStatusType.waiting => scheme.surfaceContainerHigh,
-    };
-  }
-
-  /// Resolves the highlighted foreground color during drag-copy sessions.
-  Color _foregroundColor(BuildContext context, Color fallback) {
     final isDraggingTask =
         activeDragPayload?.matchesTask(sourceScriptName, task.name) ?? false;
-    if (!isDraggingTask) {
-      return fallback;
-    }
-    return Theme.of(
-      context,
-    ).colorScheme.primaryContainer.withValues(alpha: 0.42);
-  }
-
-  /// Resolves the row border tint by task bucket.
-  Color _borderColor(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return switch (task.type) {
-      TaskStatusType.running => Colors.green.withValues(alpha: 0.28),
-      TaskStatusType.pending => Colors.orange.withValues(alpha: 0.3),
-      TaskStatusType.waiting => scheme.outlineVariant.withValues(alpha: 0.7),
-    };
+    return TaskOverviewRow(
+      type: task.type,
+      swipeEnabled: swipeEnabled,
+      onConfirmDismiss: () => onDisableTask(task.name),
+      onDismissed: () => onDismissed(task.rowId),
+      highlighted: isDraggingTask,
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TaskStatusTypeIcon(type: task.type),
+          const SizedBox(width: 10),
+          _TaskMeta(
+            controller: controller,
+            sourceScriptName: sourceScriptName,
+            task: task,
+            onSetNextRun: onSetNextRun,
+            dragEnabled: dragEnabled,
+          ),
+        ],
+      ),
+      trailing: _TaskActionBar(
+        onQuickRun: showQuickActions && !quickScheduleLocked && canQuickSchedule
+            ? () => onQuickRun(task.name)
+            : null,
+        onQuickWait:
+            showQuickActions && !quickScheduleLocked && canQuickSchedule
+            ? () => onQuickWait(task.name)
+            : null,
+        showQuickActions: showQuickActions,
+        leadingActions: leadingActions,
+        onEditTask: () => onEditTask(task.name),
+      ),
+      trailingExtent: _actionExtent + leadingActions.length * 40,
+    );
   }
 }

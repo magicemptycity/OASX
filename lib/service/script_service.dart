@@ -28,6 +28,17 @@ class ScriptService extends GetxService {
   final scriptOrderList = <String>[].obs;
   final autoScriptList = <String>[].obs;
 
+  /// Virtual scheduler events sent by multi-account task executors.
+  final multiAccountOverviewEvents = <String, Map<String, dynamic>>{}.obs;
+
+  String multiAccountOverviewKey(String scriptName, String kind) =>
+      '${scriptName.trim()}:$kind';
+
+  Map<String, dynamic>? multiAccountOverviewEvent(
+    String scriptName,
+    String kind,
+  ) => multiAccountOverviewEvents[multiAccountOverviewKey(scriptName, kind)];
+
   bool get _shouldSkipBackendReload {
     return PlatformUtils.isWeb && !ApiClient().hasConfiguredBackendAddress;
   }
@@ -52,6 +63,7 @@ class ScriptService extends GetxService {
       ),
     ]);
     scriptModelMap.clear();
+    multiAccountOverviewEvents.clear();
     super.onClose();
   }
 
@@ -177,5 +189,6 @@ class ScriptService extends GetxService {
     }
     scriptModelMap.clear();
     scriptOrderList.clear();
+    multiAccountOverviewEvents.clear();
   }
 }

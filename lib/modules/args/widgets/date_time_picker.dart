@@ -2,26 +2,25 @@
 
 part of args;
 
-final dateDaysInWeek =
-    List.generate(7, (index) => index < 10 ? '0$index' : '$index').toList();
-final dateHours =
-    List.generate(24, (index) => index < 10 ? '0$index' : '$index').toList();
-final dateMinutes =
-    List.generate(60, (index) => index < 10 ? '0$index' : '$index').toList();
-final dateSeconds =
-    List.generate(60, (index) => index < 10 ? '0$index' : '$index').toList();
+final dateDaysInWeek = List.generate(
+  7,
+  (index) => index < 10 ? '0$index' : '$index',
+).toList();
+final dateHours = List.generate(
+  24,
+  (index) => index < 10 ? '0$index' : '$index',
+).toList();
+final dateMinutes = List.generate(
+  60,
+  (index) => index < 10 ? '0$index' : '$index',
+).toList();
+final dateSeconds = List.generate(
+  60,
+  (index) => index < 10 ? '0$index' : '$index',
+).toList();
 
-final dateTimeDelta = [
-  dateDaysInWeek,
-  dateHours,
-  dateMinutes,
-  dateSeconds,
-];
-final dateTime = [
-  dateHours,
-  dateMinutes,
-  dateSeconds,
-];
+final dateTimeDelta = [dateDaysInWeek, dateHours, dateMinutes, dateSeconds];
+final dateTime = [dateHours, dateMinutes, dateSeconds];
 
 String ensureTimeDeltaString(dynamic value) {
   if (value is String) {
@@ -50,11 +49,18 @@ class DateTimePickerBase extends StatefulWidget {
     required this.onChange,
     this.hoverStyle,
     this.notHoverStyle,
+    this.minDate,
+    this.maxDate,
   });
 
   String value = '';
   final TextStyle? hoverStyle;
   final TextStyle? notHoverStyle;
+
+  /// Defaults to the scheduler's usual rolling two-year window.
+  /// Callers with historical execution records can widen this range.
+  final DateTime? minDate;
+  final DateTime? maxDate;
   void Function(String value) onChange = (value) {};
 
   @override
@@ -66,7 +72,8 @@ class DateTimePickerBaseState extends State<DateTimePickerBase> {
 
   @override
   Widget build(BuildContext context) {
-    final hoverStyle = widget.hoverStyle ??
+    final hoverStyle =
+        widget.hoverStyle ??
         TextStyle(color: Theme.of(context).primaryColor, fontSize: 16);
     final notHoverStyle = widget.notHoverStyle ?? const TextStyle(fontSize: 16);
     final baseHeight = (hoverStyle.fontSize ?? 16) * 1.2;
@@ -88,8 +95,9 @@ class DateTimePickerBaseState extends State<DateTimePickerBase> {
 
   void showPicker(context, dynamic value) {
     final now = DateTime.now();
-    final minDate = DateTime(now.year - 1, 1, 1);
-    final maxDate = DateTime(now.year + 1, 12, 31, 23, 59, 59);
+    final minDate = widget.minDate ?? DateTime(now.year - 1, 1, 1);
+    final maxDate =
+        widget.maxDate ?? DateTime(now.year + 1, 12, 31, 23, 59, 59);
     Pickers.showDatePicker(
       context,
       mode: DateMode.YMDHMS,
@@ -120,8 +128,8 @@ class DateTimePickerBaseState extends State<DateTimePickerBase> {
     final normalized = parsed.isBefore(minDate)
         ? minDate
         : parsed.isAfter(maxDate)
-            ? maxDate
-            : parsed;
+        ? maxDate
+        : parsed;
     return PDuration.parse(normalized);
   }
 
@@ -159,6 +167,8 @@ class DateTimePicker extends DateTimePickerBase {
     required super.onChange,
     super.hoverStyle,
     super.notHoverStyle,
+    super.minDate,
+    super.maxDate,
   });
 
   @override

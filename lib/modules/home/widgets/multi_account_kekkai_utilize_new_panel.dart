@@ -5,7 +5,10 @@ import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
+import 'package:oasx/modules/home/widgets/task_status_row.dart';
+import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
+import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 /// 新版多账号蹭卡：运行账号使用公共账号库，蹭卡配置与禁卡时段均由账号独立保存。
@@ -29,6 +32,10 @@ class MultiAccountKekkaiUtilizeNewPanel extends StatefulWidget {
 class _MultiAccountKekkaiUtilizeNewPanelState
     extends State<MultiAccountKekkaiUtilizeNewPanel> {
   late Future<Map<String, dynamic>> _stateFuture;
+  final ScriptService _scriptService = Get.find<ScriptService>();
+  Worker? _overviewWorker;
+  Map<String, dynamic>? _activeOverviewAccount;
+  bool _showDisabledAccounts = false;
   String get _scriptName => widget.scriptModel.name;
   static const _taskName = 'MultiAccountKekkaiUtilizeNew';
 
@@ -36,12 +43,22 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   void initState() {
     super.initState();
     _reload();
+    _bindOverviewPush();
+  }
+
+  @override
+  void dispose() {
+    _overviewWorker?.dispose();
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant MultiAccountKekkaiUtilizeNewPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.scriptModel.name != widget.scriptModel.name) _reload();
+    if (oldWidget.scriptModel.name != widget.scriptModel.name) {
+      _activeOverviewAccount = null;
+      _reload();
+    }
   }
 
   @override
@@ -89,15 +106,20 @@ class _MultiAccountKekkaiUtilizeNewPanelState
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final accounts = _maps(snapshot.data?['accounts']);
-              if (accounts.isEmpty) {
+              final allAccounts = _maps(snapshot.data?['accounts']);
+              final accounts = _showDisabledAccounts
+                  ? allAccounts
+                  : allAccounts
+                        .where((item) => item['enabled'] != false)
+                        .toList();
+              if (allAccounts.isEmpty) {
                 // 没有账号时只显示居中的添加账号卡片，不显示账号管理栏。
                 return _buildEmpty(context);
               }
               return SingleChildScrollView(
                 child: Column(
                   children: [
-                    _buildHeader(context),
+                    _buildHeader(context, allAccounts),
                     const SizedBox(height: 12),
                     for (final account in accounts) ...[
                       _buildAccount(context, account),
@@ -113,7 +135,10 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     );
   }
 
-  Widget _buildHeader(BuildContext context) => Card(
+  Widget _buildHeader(
+    BuildContext context,
+    List<Map<String, dynamic>> accounts,
+  ) => Card(
     // 与每日琐事 Args 中 ExpansionTileItem 的参数保持一致。
     color: Theme.of(
       context,
@@ -133,20 +158,37 @@ class _MultiAccountKekkaiUtilizeNewPanelState
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text('账号管理'.tr, style: Theme.of(context).textTheme.titleSmall),
-              OutlinedButton.icon(
+              buildAccountManagementButton(
                 onPressed: _showPublicAccounts,
-                icon: const Icon(Icons.groups_rounded, size: 18),
-                label: Text('公共账号库'.tr),
+                icon: Icons.groups_rounded,
+                label: '公共账号库'.tr,
               ),
-              OutlinedButton.icon(
+              buildAccountManagementButton(
                 onPressed: _showTaskSettings,
-                icon: const Icon(Icons.settings_rounded, size: 18),
-                label: Text('公共配置'.tr),
+                icon: Icons.settings_rounded,
+                label: '公共配置'.tr,
               ),
-              FilledButton.icon(
+              IconButton(
+                tooltip: _showDisabledAccounts ? '隐藏未启用账号'.tr : '显示未启用账号'.tr,
+                onPressed: () => setState(
+                  () => _showDisabledAccounts = !_showDisabledAccounts,
+                ),
+                icon: Icon(
+                  _showDisabledAccounts
+                      ? Icons.filter_alt_off_rounded
+                      : Icons.filter_alt_rounded,
+                ),
+              ),
+              buildAccountManagementButton(
                 onPressed: _showAddAccount,
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                label: Text('添加账号'.tr),
+                icon: Icons.person_add_alt_1_rounded,
+                label: '添加账号'.tr,
+                filled: true,
+              ),
+              buildAccountManagementButton(
+                onPressed: () => _showDeleteAccounts(accounts),
+                icon: Icons.person_remove_outlined,
+                label: '删除账号'.tr,
               ),
             ],
           ),
@@ -191,63 +233,65 @@ class _MultiAccountKekkaiUtilizeNewPanelState
 
   Widget _buildAccount(BuildContext context, Map<String, dynamic> account) {
     final index = account['index'] as int? ?? 0;
-    final label = '${account['character'] ?? ''}-${account['svr'] ?? ''}';
-    final nextRun = '${account['next_utilize_time'] ?? ''}';
-    final forbidCount = account['forbid_period_count'] as int? ?? 0;
-    return Card(
-      // 与配置页的调度器、每日琐事等分组使用相同的浅紫底色。
-      // 与每日琐事 Args 中 ExpansionTileItem 的参数保持一致。
-      color: Theme.of(
-        context,
-      ).colorScheme.secondaryContainer.withValues(alpha: 0.24),
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '$index：$label',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
-                IconButton(
-                  tooltip: '删除账号'.tr,
-                  onPressed: () => _deleteAccount(index, label),
-                  icon: const Icon(Icons.delete_outline_rounded),
-                ),
-              ],
-            ),
-            Text('下一次蹭卡：$nextRun'.tr),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showUtilizeSettings(index, label),
-                  icon: const Icon(Icons.tune_rounded, size: 18),
-                  label: Text('私有蹭卡配置'.tr),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _showForbidSettings(index, label),
-                  icon: const Icon(Icons.schedule_rounded, size: 18),
-                  label: Text(
-                    forbidCount > 0
-                        ? '${'禁卡时段配置'.tr}（$forbidCount）'
-                        : '禁卡时段配置'.tr,
-                  ),
-                ),
-              ],
-            ),
-          ],
+    final character = '${account['character'] ?? ''}'.trim();
+    final server = '${account['svr'] ?? ''}'.trim();
+    final label = [
+      character,
+      server,
+    ].where((item) => item.isNotEmpty).join('-');
+    final accountLabel = label.isEmpty
+        ? '${account['public_account_identifier'] ?? ''}'.trim()
+        : label;
+    final nextRun =
+        '${account['next_run'] ?? account['next_utilize_time'] ?? ''}'.trim();
+    final enabled = account['enabled'] != false;
+    final activeIndex = _activeOverviewAccount?['account_index'];
+    final isRunning = activeIndex == index;
+    final type = isRunning
+        ? TaskStatusType.running
+        : '${account['schedule_status'] ?? 'waiting'}' == 'pending'
+        ? TaskStatusType.pending
+        : TaskStatusType.waiting;
+    final task = TaskStatusViewData(
+      rowId: 'multi-account-utilize::$index',
+      name: 'MultiAccountKekkaiUtilizeNew/$index',
+      displayName: '$index：$accountLabel',
+      type: type,
+      timeText: nextRun,
+    );
+    return TaskStatusRow(
+      key: ValueKey(task.rowId),
+      controller: widget.controller,
+      sourceScriptName: _scriptName,
+      task: task,
+      canQuickSchedule: enabled && !isRunning,
+      quickScheduleLocked: isRunning,
+      leadingActions: [
+        TaskStatusActionIcon(
+          icon: Icons.block_rounded,
+          tooltip: '禁卡时段配置'.tr,
+          onPressed: () => _showForbidSettings(index, accountLabel),
         ),
-      ),
+        TaskStatusActionIcon(
+          icon: Icons.delete_outline_rounded,
+          tooltip: '删除账号'.tr,
+          onPressed: () => _deleteAccount(index, accountLabel),
+        ),
+      ],
+      onSetNextRun: (_, value) => _setAccountNextRun(index, value),
+      onQuickRun: (_) => _quickScheduleAccount(index, runNow: true),
+      onQuickWait: (_) => _quickScheduleAccount(index, runNow: false),
+      onEditTask: (_) => _showAccountTaskSettings(index, accountLabel),
+      onDisableTask: (_) =>
+          ApiClient().setMultiAccountKekkaiUtilizeNewAccountEnable(
+            scriptName: _scriptName,
+            accountIndex: index,
+            enable: false,
+          ),
+      onDismissed: (_) => _reload(),
+      dragEnabled: false,
+      swipeEnabled: enabled && !isRunning,
+      activeDragPayload: null,
     );
   }
 
@@ -263,42 +307,50 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   Future<void> _showAddAccount() async {
     final data = await ApiClient()
         .getMultiAccountKekkaiUtilizeNewPublicAccounts(scriptName: _scriptName);
+    final state = await _stateFuture;
     if (!mounted) return;
-    final choices = _maps(data['accounts']);
-    final selected = await showDialog<String>(
+    final used = _maps(
+      state['accounts'],
+    ).map((item) => '${item['public_account_identifier'] ?? ''}').toSet();
+    final choices = _maps(
+      data['accounts'],
+    ).where((item) => !used.contains('${item['identifier'] ?? ''}')).toList();
+    final selected = await showMultiAccountPickerDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('选择公共账号'.tr),
-        content: SizedBox(
-          width: 440,
-          height: 420,
-          child: choices.isEmpty
-              ? Center(child: Text('公共账号库为空，请先在其他多账号功能中添加公共账号'.tr))
-              : ListView.builder(
-                  itemCount: choices.length,
-                  itemBuilder: (_, i) {
-                    final item = choices[i];
-                    final id = '${item['identifier'] ?? ''}';
-                    return ListTile(
-                      title: Text(id),
-                      subtitle: Text(
-                        '${item['character'] ?? ''}-${item['svr'] ?? ''}\n${item['account'] ?? ''}',
-                      ),
-                      isThreeLine: true,
-                      onTap: () => Navigator.of(dialogContext).pop(id),
-                    );
-                  },
-                ),
-        ),
-      ),
+      choices: choices,
+      detailBuilder: _publicAccountDetail,
     );
     if (selected == null || selected.isEmpty) return;
-    if (await ApiClient().addMultiAccountKekkaiUtilizeNewAccount(
-      scriptName: _scriptName,
-      identifier: selected,
-    )) {
-      _reload();
+    for (final identifier in selected) {
+      await ApiClient().addMultiAccountKekkaiUtilizeNewAccount(
+        scriptName: _scriptName,
+        identifier: identifier,
+      );
     }
+    _reload();
+  }
+
+  Future<void> _showDeleteAccounts(List<Map<String, dynamic>> accounts) async {
+    final indexes = await showBatchAccountDeleteDialog(
+      context: context,
+      accounts: accounts,
+      titleBuilder: _accountLabel,
+      detailBuilder: _publicAccountDetail,
+    );
+    if (indexes == null || indexes.isEmpty || !mounted) return;
+    final confirmed = await _confirm(
+      '确认批量删除'.tr,
+      '只会删除运行账号列表中的账号，不会删除公共账号库中的账号。是否继续？'.tr,
+    );
+    if (confirmed != true) return;
+    final sorted = [...indexes]..sort((a, b) => b.compareTo(a));
+    for (final index in sorted) {
+      await ApiClient().deleteMultiAccountKekkaiUtilizeNewAccount(
+        scriptName: _scriptName,
+        accountIndex: index,
+      );
+    }
+    _reload();
   }
 
   Future<void> _deleteAccount(int index, String label) async {
@@ -312,6 +364,18 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     }
   }
 
+  String _accountLabel(Map<String, dynamic> account) {
+    final character = '${account['character'] ?? ''}'.trim();
+    final server = '${account['svr'] ?? ''}'.trim();
+    final identifier = '${account['public_account_identifier'] ?? ''}'.trim();
+    final title = [
+      character,
+      server,
+    ].where((item) => item.isNotEmpty).join('-');
+    if (title.isNotEmpty) return title;
+    return identifier.isEmpty ? '-' : identifier;
+  }
+
   String _publicAccountDetail(Map<String, dynamic> account) {
     final character = '${account['character'] ?? ''}'.trim();
     final server = '${account['svr'] ?? ''}'.trim();
@@ -323,99 +387,32 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   }
 
   Future<void> _showPublicAccounts() async {
-    // 公共账号库与其他新版多账号功能共用，因此使用统一的账号库接口。
-    final data = await ApiClient().getMultiAccountRepeatNewPublicAccounts(
-      scriptName: _scriptName,
-    );
-    if (!mounted) return;
-    final accounts = _maps(data['accounts']);
-    await showDialog<void>(
+    await showPublicAccountLibraryDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('公共账号库'.tr),
-        content: SizedBox(
-          width: 620,
-          height: 480,
-          child: accounts.isEmpty
-              ? Center(child: Text('暂无公共账号'.tr))
-              : ListView.separated(
-                  itemCount: accounts.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final account = accounts[index];
-                    final identifier = '${account['identifier'] ?? ''}';
-                    return ListTile(
-                      title: Text(identifier),
-                      subtitle: Text(_publicAccountDetail(account)),
-                      isThreeLine: true,
-                      trailing: Wrap(
-                        children: [
-                          IconButton(
-                            tooltip: '设置'.tr,
-                            onPressed: () async {
-                              final saved = await _editPublicAccount(account);
-                              if (saved && dialogContext.mounted) {
-                                Navigator.of(dialogContext).pop();
-                              }
-                            },
-                            icon: const Icon(Icons.edit_rounded),
-                          ),
-                          IconButton(
-                            tooltip: '删除'.tr,
-                            onPressed: () async {
-                              final ok = await ApiClient()
-                                  .deleteMultiAccountRepeatNewPublicAccount(
-                                    scriptName: _scriptName,
-                                    identifier: identifier,
-                                  );
-                              if (ok && dialogContext.mounted) {
-                                Navigator.of(dialogContext).pop();
-                              }
-                            },
-                            icon: const Icon(Icons.delete_outline_rounded),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: accounts.isEmpty
-                ? null
-                : () async {
-                    final copied = await showSharedPublicAccountCopyDialog(
-                      context: dialogContext,
-                      sourceScriptName: _scriptName,
-                      accounts: accounts,
-                    );
-                    if (copied && dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-            icon: const Icon(Icons.content_copy_rounded),
-            label: const Text('复制到其他脚本'),
-          ),          TextButton.icon(
-            onPressed: () async {
-              final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
-              if (identifier == null || identifier.trim().isEmpty) return;
-              final ok = await ApiClient().addMultiAccountRepeatNewPublicAccount(
-                scriptName: _scriptName,
-                identifier: identifier.trim(),
-              );
-              if (ok && dialogContext.mounted) {
-                Navigator.of(dialogContext).pop();
-              }
-            },
-            icon: const Icon(Icons.add_rounded),
-            label: Text('新增公共账号'.tr),
+      loadAccounts: () async => _maps(
+        (await ApiClient().getMultiAccountTaskOrchestrationPublicAccounts(
+          scriptName: _scriptName,
+        ))['accounts'],
+      ),
+      onDelete: (identifier) =>
+          ApiClient().deleteMultiAccountTaskOrchestrationPublicAccount(
+            scriptName: _scriptName,
+            identifier: identifier,
           ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text('关闭'.tr),
-          ),
-        ],
+      onEdit: _editPublicAccount,
+      onAdd: () async {
+        final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
+        if (identifier == null || identifier.trim().isEmpty) return false;
+        return ApiClient().addMultiAccountTaskOrchestrationPublicAccount(
+          scriptName: _scriptName,
+          identifier: identifier.trim(),
+        );
+      },
+      detailBuilder: _publicAccountDetail,
+      onCopy: (accounts) => showSharedPublicAccountCopyDialog(
+        context: context,
+        sourceScriptName: _scriptName,
+        accounts: accounts,
       ),
     );
     _reload();
@@ -424,10 +421,14 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   Future<bool> _editPublicAccount(Map<String, dynamic> account) async {
     final originalIdentifier = '${account['identifier'] ?? ''}';
     final identifier = TextEditingController(text: originalIdentifier);
-    final character = TextEditingController(text: '${account['character'] ?? ''}');
+    final character = TextEditingController(
+      text: '${account['character'] ?? ''}',
+    );
     final server = TextEditingController(text: '${account['svr'] ?? ''}');
     final login = TextEditingController(text: '${account['account'] ?? ''}');
-    final alias = TextEditingController(text: '${account['account_alias'] ?? ''}');
+    final alias = TextEditingController(
+      text: '${account['account_alias'] ?? ''}',
+    );
     var apple = account['apple_or_android'] != false;
     final saved = await showDialog<bool>(
       context: context,
@@ -487,7 +488,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
                 ];
                 for (final field in fields) {
                   final ok = await ApiClient()
-                      .putMultiAccountRepeatNewPublicAccountValue(
+                      .putMultiAccountTaskOrchestrationPublicAccountValue(
                         scriptName: _scriptName,
                         identifier: currentIdentifier,
                         field: field.$1,
@@ -548,6 +549,125 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     return result;
   }
 
+  Future<void> _setAccountNextRun(int index, String nextRun) async {
+    final ok = await ApiClient().putMultiAccountKekkaiUtilizeNewSchedulerArg(
+      scriptName: _scriptName,
+      accountIndex: index,
+      argumentName: 'next_run',
+      type: 'date_time',
+      value: nextRun,
+    );
+    if (ok) _reload();
+  }
+
+  Future<void> _quickScheduleAccount(int index, {required bool runNow}) async {
+    final ok = await ApiClient()
+        .quickScheduleMultiAccountKekkaiUtilizeNewAccount(
+          scriptName: _scriptName,
+          accountIndex: index,
+          runNow: runNow,
+        );
+    if (ok) _reload();
+  }
+
+  Future<void> _showAccountTaskSettings(int index, String label) async {
+    final results = await Future.wait([
+      ApiClient().getMultiAccountKekkaiUtilizeNewSchedulerArgs(
+        scriptName: _scriptName,
+        accountIndex: index,
+      ),
+      ApiClient().getMultiAccountKekkaiUtilizeNewUtilizeArgs(
+        scriptName: _scriptName,
+        accountIndex: index,
+      ),
+    ]);
+    if (!mounted || results.any((data) => data.isEmpty)) return;
+    final args = Get.find<ArgsController>();
+    await args.loadGroupsFromData(
+      config: _scriptName,
+      task: _taskName,
+      json: {...results[0], ...results[1]},
+      stagingMode: true,
+      saveArgumentOverride: (config, task, group, argument, type, value) {
+        if (group == 'scheduler') {
+          return ApiClient().putMultiAccountKekkaiUtilizeNewSchedulerArg(
+            scriptName: config,
+            accountIndex: index,
+            argumentName: argument,
+            type: type,
+            value: value,
+          );
+        }
+        return ApiClient().putMultiAccountKekkaiUtilizeNewUtilizeArg(
+          scriptName: config,
+          accountIndex: index,
+          argumentName: argument,
+          type: type,
+          value: value,
+        );
+      },
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: SizedBox(
+          width: 720,
+          height: 680,
+          child: Column(
+            children: [
+              ListTile(
+                title: Text('$label：${'蹭卡任务设置'.tr}'),
+                trailing: Wrap(
+                  children: [
+                    IconButton(
+                      tooltip: '恢复默认私有蹭卡配置'.tr,
+                      onPressed: () async {
+                        if (await ApiClient()
+                                .resetMultiAccountKekkaiUtilizeNewUtilizeArgs(
+                                  scriptName: _scriptName,
+                                  accountIndex: index,
+                                ) &&
+                            dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                      },
+                      icon: const Icon(Icons.restart_alt_rounded),
+                    ),
+                    IconButton(
+                      tooltip: '复制私有蹭卡配置'.tr,
+                      onPressed: () => _showCopyDialog(index, label, false),
+                      icon: const Icon(Icons.content_copy_rounded),
+                    ),
+                    IconButton(
+                      tooltip: '关闭'.tr,
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Args(
+                  scriptName: _scriptName,
+                  taskName: _taskName,
+                  stagingMode: true,
+                  onCancel: () async {
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await args.discardDraftChanges();
+    _reload();
+  }
+
   Future<void> _showTaskSettings() async {
     final data = await ApiClient().getMultiAccountKekkaiUtilizeNewPublicArgs(
       scriptName: _scriptName,
@@ -570,39 +690,6 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     );
     if (!mounted) return;
     await _showArgsDialog(args, '多账号多任务蹭卡新任务设置'.tr);
-  }
-
-  Future<void> _showUtilizeSettings(int index, String label) async {
-    final data = await ApiClient().getMultiAccountKekkaiUtilizeNewUtilizeArgs(
-      scriptName: _scriptName,
-      accountIndex: index,
-    );
-    if (data.isEmpty || !mounted) return;
-    final args = Get.find<ArgsController>();
-    await args.loadGroupsFromData(
-      config: _scriptName,
-      task: _taskName,
-      json: data,
-      stagingMode: true,
-      saveArgumentOverride: (config, task, group, argument, type, value) =>
-          ApiClient().putMultiAccountKekkaiUtilizeNewUtilizeArg(
-            scriptName: config,
-            accountIndex: index,
-            argumentName: argument,
-            type: type,
-            value: value,
-          ),
-    );
-    if (!mounted) return;
-    await _showArgsDialog(
-      args,
-      '$label：${'私有蹭卡配置'.tr}',
-      reset: () => ApiClient().resetMultiAccountKekkaiUtilizeNewUtilizeArgs(
-        scriptName: _scriptName,
-        accountIndex: index,
-      ),
-      copy: () => _showCopyDialog(index, label, false),
-    );
   }
 
   Future<void> _showForbidSettings(int index, String label) async {
@@ -946,6 +1033,24 @@ class _MultiAccountKekkaiUtilizeNewPanelState
             .map((item) => item.cast<String, dynamic>())
             .toList()
       : <Map<String, dynamic>>[];
+
+  void _bindOverviewPush() {
+    _overviewWorker?.dispose();
+    _overviewWorker = ever(_scriptService.multiAccountOverviewEvents, (_) {
+      final event = _scriptService.multiAccountOverviewEvent(
+        _scriptName,
+        'utilize',
+      );
+      if (event == null) return;
+      if (event.containsKey('active')) {
+        final active = event['active'];
+        _activeOverviewAccount = active is Map
+            ? active.cast<String, dynamic>()
+            : null;
+      }
+      _reload();
+    });
+  }
 
   void _reload() {
     if (!mounted) return;

@@ -307,7 +307,15 @@ final Map<String, String> _us_restart = {
   I18n.successIntervalHelp: '',
   I18n.failureIntervalHelp: '',
   I18n.serverUpdateHelp:
-      'If it\'s not set to the default "09:00:00", the task will forcibly set the next run time to the set value of the next day after each execution',
+      'If it is not set to the default "09:00:00", the task will calculate the next run time using the forced date rule below after each execution',
+  'schedule_mode': 'Forced date rule',
+  'schedule_mode_help':
+      'This applies when the forced service execution time is not 09:00:00. Choose interval days or specified weekdays to calculate the next run time.',
+  'interval_days': 'Interval days',
+  'weekday': 'Specified weekdays',
+  'weekdays': 'Weekdays',
+  'weekdays_help':
+      'Select the weekdays on which the task may run. This only applies when the forced date rule is set to specified weekdays.',
   I18n.harvestEnableHelp:
       'This section is for automatically clicking on login rewards when logging into the game. It is a required option',
   'rest_task_datetime_help': '',

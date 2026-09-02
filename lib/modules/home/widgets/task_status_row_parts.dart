@@ -22,7 +22,7 @@ class _TaskMeta extends StatelessWidget {
       taskName: task.name,
     );
     final title = Text(
-      task.name.tr,
+      (task.displayName ?? task.name).tr,
       maxLines: 1,
       overflow: TextOverflow.visible,
       softWrap: false,
@@ -45,35 +45,48 @@ class _TaskMeta extends StatelessWidget {
             : title,
         if (task.timeText.isNotEmpty) ...[
           const SizedBox(height: 2),
-          DateTimePicker(
-            value: task.timeText,
-            notHoverStyle: Theme.of(context).textTheme.labelMedium,
-            hoverStyle: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(color: Theme.of(context).colorScheme.primary),
-            onChange: (value) => unawaited(onSetNextRun(task.name, value)),
-          ),
+          if (task.timeEditable)
+            DateTimePicker(
+              value: task.timeText,
+              notHoverStyle: Theme.of(context).textTheme.labelMedium,
+              hoverStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              onChange: (value) => unawaited(onSetNextRun(task.name, value)),
+            )
+          else
+            Text(
+              task.timeText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
         ],
       ],
     );
   }
 }
 
-class _TaskTypeIcon extends StatelessWidget {
-  const _TaskTypeIcon({required this.type});
+class TaskStatusTypeIcon extends StatelessWidget {
+  const TaskStatusTypeIcon({super.key, required this.type});
 
   final TaskStatusType type;
 
   @override
   Widget build(BuildContext context) {
     final icon = switch (type) {
-      TaskStatusType.running =>
-        const Icon(Icons.bolt_rounded, color: Colors.green),
-      TaskStatusType.pending =>
-        const Icon(Icons.layers_rounded, color: Colors.orange),
-      TaskStatusType.waiting =>
-        const Icon(Icons.schedule_rounded, color: Colors.blueGrey),
+      TaskStatusType.running => const Icon(
+        Icons.bolt_rounded,
+        color: Colors.green,
+      ),
+      TaskStatusType.pending => const Icon(
+        Icons.layers_rounded,
+        color: Colors.orange,
+      ),
+      TaskStatusType.waiting => const Icon(
+        Icons.schedule_rounded,
+        color: Colors.blueGrey,
+      ),
     };
     return SizedBox(width: 28, height: 28, child: Center(child: icon));
   }
@@ -84,28 +97,35 @@ class _TaskActionBar extends StatelessWidget {
     required this.onQuickRun,
     required this.onQuickWait,
     required this.onEditTask,
+    required this.showQuickActions,
+    required this.leadingActions,
   });
 
   final VoidCallback? onQuickRun;
   final VoidCallback? onQuickWait;
   final VoidCallback? onEditTask;
+  final bool showQuickActions;
+  final List<Widget> leadingActions;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _TaskActionIcon(
-          icon: Icons.flash_on_rounded,
-          tooltip: I18n.homeQuickRun.tr,
-          onPressed: onQuickRun,
-        ),
-        _TaskActionIcon(
-          icon: Icons.schedule_rounded,
-          tooltip: I18n.homeQuickWait.tr,
-          onPressed: onQuickWait,
-        ),
-        _TaskActionIcon(
+        ...leadingActions,
+        if (showQuickActions) ...[
+          TaskStatusActionIcon(
+            icon: Icons.flash_on_rounded,
+            tooltip: I18n.homeQuickRun.tr,
+            onPressed: onQuickRun,
+          ),
+          TaskStatusActionIcon(
+            icon: Icons.schedule_rounded,
+            tooltip: I18n.homeQuickWait.tr,
+            onPressed: onQuickWait,
+          ),
+        ],
+        TaskStatusActionIcon(
           icon: Icons.tune_rounded,
           tooltip: I18n.homeOpenTaskParams.tr,
           onPressed: onEditTask,
@@ -115,8 +135,9 @@ class _TaskActionBar extends StatelessWidget {
   }
 }
 
-class _TaskActionIcon extends StatelessWidget {
-  const _TaskActionIcon({
+class TaskStatusActionIcon extends StatelessWidget {
+  const TaskStatusActionIcon({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,

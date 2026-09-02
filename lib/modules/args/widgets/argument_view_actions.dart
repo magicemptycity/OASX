@@ -38,11 +38,11 @@ extension _ArgumentViewActions on _ArgumentViewState {
     _applyValue(value ?? '', 'time', useSetState: true);
   }
 
-  void _applyValue(
-    dynamic value,
-    String type, {
-    bool useSetState = false,
-  }) {
+  void onWeekdayChanged(List<int> value) {
+    _applyValue(value.join(','), 'weekday_multi', useSetState: true);
+  }
+
+  void _applyValue(dynamic value, String type, {bool useSetState = false}) {
     if (_isProtectedImmediateScheduleField) {
       return;
     }
@@ -60,6 +60,7 @@ extension _ArgumentViewActions on _ArgumentViewState {
         value,
         type,
       );
+      _refreshForcedDateRuleFields();
       return;
     }
     if (useSetState) {
@@ -69,15 +70,25 @@ extension _ArgumentViewActions on _ArgumentViewState {
     } else {
       model.value = value;
     }
+    final persistedValue = value;
     widget.setArgument(
       widget.scriptName,
       widget.taskName,
       widget.getGroupName(),
       model.title,
       type,
-      value,
+      persistedValue,
     );
+    _refreshForcedDateRuleFields();
     showSnakbar(value);
+  }
+
+  void _refreshForcedDateRuleFields() {
+    if (widget.getGroupName() == ArgsController.schedulerGroup &&
+        (model.title == 'server_update' || model.title == 'schedule_mode')) {
+      _argsController.groups.refresh();
+      _argsController.groupsData.refresh();
+    }
   }
 
   void showSnakbar(dynamic value) {

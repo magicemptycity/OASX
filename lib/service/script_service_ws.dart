@@ -35,6 +35,15 @@ extension ScriptServiceWsX on ScriptService {
       scriptModelMap[name]!.update(state: ScriptState.getState(data['state']));
       return;
     }
+    final overview = data['multi_account_overview'];
+    if (overview is Map) {
+      final kind = '${overview['kind'] ?? ''}'.trim();
+      if (kind.isNotEmpty) {
+        multiAccountOverviewEvents[multiAccountOverviewKey(name, kind)] =
+            overview.cast<String, dynamic>();
+      }
+      return;
+    }
     if (!data.containsKey('schedule')) {
       return;
     }

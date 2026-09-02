@@ -44,6 +44,39 @@ class _ArgumentViewState extends State<ArgumentView> {
         );
   }
 
+  bool get _isForcedDateRuleDisabled {
+    if (widget.getGroupName() != ArgsController.schedulerGroup) {
+      return false;
+    }
+    const ruleFields = {'schedule_mode', 'delay_date', 'weekdays'};
+    if (!ruleFields.contains(model.title)) {
+      return false;
+    }
+
+    final serverUpdate = _argsController
+        .findArgument(ArgsController.schedulerGroup, 'server_update')
+        ?.value
+        .toString();
+    if (serverUpdate == null || serverUpdate == '09:00:00') {
+      return true;
+    }
+    if (model.title == 'delay_date') {
+      return _argsController
+              .findArgument(ArgsController.schedulerGroup, 'schedule_mode')
+              ?.value
+              .toString() !=
+          'interval_days';
+    }
+    if (model.title == 'weekdays') {
+      return _argsController
+              .findArgument(ArgsController.schedulerGroup, 'schedule_mode')
+              ?.value
+              .toString() !=
+          'weekday';
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -101,89 +134,89 @@ class _ArgumentViewState extends State<ArgumentView> {
   }
 
   Widget _buildFormSection() {
-    final errorText =
-        _argsController.fieldError(widget.getGroupName(), model.title);
-    final isLocked = _isProtectedImmediateScheduleField;
+    final errorText = _argsController.fieldError(
+      widget.getGroupName(),
+      model.title,
+    );
+    final isLocked =
+        _isProtectedImmediateScheduleField || _isForcedDateRuleDisabled;
     final child = switch (model.type) {
       'boolean' => Checkbox(
-          value: model.value,
-          onChanged: isLocked ? null : onCheckboxChanged,
-        ).alignment(Alignment.centerLeft),
+        value: model.value,
+        onChanged: isLocked ? null : onCheckboxChanged,
+      ).alignment(Alignment.centerLeft),
       'string' => _buildTextField(errorText: errorText, enabled: !isLocked),
       'multi_line' => _buildTextField(
-          errorText: errorText,
-          maxLines: null,
-          enabled: !isLocked,
-        ),
+        errorText: errorText,
+        maxLines: null,
+        enabled: !isLocked,
+      ),
       'number' => _buildTextField(
-          errorText: errorText,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp('[-0-9.]')),
-          ],
-          onChanged: _scheduleNumberChange,
-          enabled: !isLocked,
-        ),
+        errorText: errorText,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[-0-9.]'))],
+        onChanged: _scheduleNumberChange,
+        enabled: !isLocked,
+      ),
       'integer' => _buildTextField(
-          errorText: errorText,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp('[-0-9]')),
-          ],
-          onChanged: _scheduleIntegerChange,
-          enabled: !isLocked,
-        ),
+        errorText: errorText,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[-0-9]'))],
+        onChanged: _scheduleIntegerChange,
+        enabled: !isLocked,
+      ),
       'enum' => DropdownButtonFormField<String>(
-          initialValue: model.value.toString(),
-          isExpanded: true,
-          menuMaxHeight: Get.height * 0.5,
-          decoration: InputDecoration(errorText: errorText),
-          items: model.enumEnum!
-              .map<DropdownMenuItem<String>>(
-                (e) => DropdownMenuItem(
-                  value: e.toString(),
-                  child: Text(
-                    e.toString().tr,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        initialValue: model.value.toString(),
+        isExpanded: true,
+        menuMaxHeight: Get.height * 0.5,
+        decoration: InputDecoration(errorText: errorText),
+        items: model.enumEnum!
+            .map<DropdownMenuItem<String>>(
+              (e) => DropdownMenuItem(
+                value: e.toString(),
+                child: Text(
+                  e.toString().tr,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              )
-              .toList(),
-          selectedItemBuilder: (context) => model.enumEnum!
-              .map<Widget>(
-                (e) => Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    e.toString().tr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
+              ),
+            )
+            .toList(),
+        selectedItemBuilder: (context) => model.enumEnum!
+            .map<Widget>(
+              (e) => Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  e.toString().tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
-              )
-              .toList(),
-          onChanged: isLocked ? null : onEnumChanged,
-        ),
+              ),
+            )
+            .toList(),
+        onChanged: isLocked ? null : onEnumChanged,
+      ),
       'date_time' => _buildPicker(
-          DateTimePicker(value: model.value, onChange: onDateTimeChanged),
-          errorText,
-          enabled: !isLocked,
-        ),
+        DateTimePicker(value: model.value, onChange: onDateTimeChanged),
+        errorText,
+        enabled: !isLocked,
+      ),
       'time_delta' => _buildPicker(
-          TimeDeltaPicker(
-            value: ensureTimeDeltaString(model.value),
-            onChange: onTimeDeltaChanged,
-          ),
-          errorText,
-          enabled: !isLocked,
+        TimeDeltaPicker(
+          value: ensureTimeDeltaString(model.value),
+          onChange: onTimeDeltaChanged,
         ),
+        errorText,
+        enabled: !isLocked,
+      ),
       'time' => _buildPicker(
-          TimePicker(value: model.value, onChange: onTimeChanged),
-          errorText,
-          enabled: !isLocked,
-        ),
+        TimePicker(value: model.value, onChange: onTimeChanged),
+        errorText,
+        enabled: !isLocked,
+      ),
+      'weekday_multi' => _buildWeekdayPicker(errorText, enabled: !isLocked),
       _ => Text(model.value.toString()),
     };
     return child;
@@ -212,11 +245,11 @@ class _ArgumentViewState extends State<ArgumentView> {
         right: 12,
         bottom: keyboardInset > 0 ? keyboardInset + 24 : 24,
       ),
-      textInputAction:
-          isSingleLine ? TextInputAction.done : TextInputAction.newline,
+      textInputAction: isSingleLine
+          ? TextInputAction.done
+          : TextInputAction.newline,
       decoration: InputDecoration(errorText: errorText),
-      onTapOutside:
-          PlatformUtils.isWeb ? null : (_) => _focusNode.unfocus(),
+      onTapOutside: PlatformUtils.isWeb ? null : (_) => _focusNode.unfocus(),
       onEditingComplete: PlatformUtils.isWeb
           ? null
           : (isSingleLine ? _focusNode.unfocus : null),
@@ -224,11 +257,88 @@ class _ArgumentViewState extends State<ArgumentView> {
     );
   }
 
-  Widget _buildPicker(
-    Widget picker,
-    String? errorText, {
-    bool enabled = true,
-  }) {
+  Widget _buildWeekdayPicker(String? errorText, {required bool enabled}) {
+    final selected = <int>{
+      if (model.value is List)
+        ...(model.value as List)
+            .map((value) => int.tryParse('$value'))
+            .whereType<int>(),
+      if (model.value is String)
+        ...'${model.value}'
+            .split(',')
+            .map((value) => int.tryParse(value.trim()))
+            .whereType<int>(),
+    };
+    const labels = <String>['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    final selectedLabel = selected.isEmpty
+        ? '未选择'.tr
+        : [
+            for (var day = 1; day <= labels.length; day++)
+              if (selected.contains(day)) labels[day - 1].tr,
+          ].join('、');
+    return InputDecorator(
+      decoration: InputDecoration(
+        errorText: errorText,
+        suffixIcon: IconButton(
+          tooltip: '选择运行星期'.tr,
+          onPressed: !enabled
+              ? null
+              : () async {
+                  final result = await showDialog<List<int>>(
+                    context: context,
+                    builder: (dialogContext) {
+                      final draft = {...selected};
+                      return StatefulBuilder(
+                        builder: (context, setDialogState) => AlertDialog(
+                          title: Text('选择运行星期'.tr),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var day = 1; day <= labels.length; day++)
+                                CheckboxListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  value: draft.contains(day),
+                                  title: Text(labels[day - 1].tr),
+                                  onChanged: (value) => setDialogState(() {
+                                    if (value == true) {
+                                      draft.add(day);
+                                    } else {
+                                      draft.remove(day);
+                                    }
+                                  }),
+                                ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              child: Text(I18n.cancel.tr),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.of(
+                                dialogContext,
+                              ).pop(draft.toList()..sort()),
+                              child: Text(I18n.confirm.tr),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                  if (result != null) {
+                    onWeekdayChanged(result);
+                  }
+                },
+          icon: const Icon(Icons.calendar_month_rounded),
+        ),
+      ),
+      child: Text(selectedLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+  }
+
+  Widget _buildPicker(Widget picker, String? errorText, {bool enabled = true}) {
     return IgnorePointer(
       ignoring: !enabled,
       child: Opacity(
@@ -267,19 +377,25 @@ class _ArgumentViewState extends State<ArgumentView> {
 
   void _scheduleStringChange(String value) {
     timer?.cancel();
-    timer =
-        Timer(const Duration(milliseconds: 150), () => onStringChanged(value));
+    timer = Timer(
+      const Duration(milliseconds: 150),
+      () => onStringChanged(value),
+    );
   }
 
   void _scheduleNumberChange(String value) {
     timer?.cancel();
-    timer =
-        Timer(const Duration(milliseconds: 150), () => onNumberChanged(value));
+    timer = Timer(
+      const Duration(milliseconds: 150),
+      () => onNumberChanged(value),
+    );
   }
 
   void _scheduleIntegerChange(String value) {
     timer?.cancel();
-    timer =
-        Timer(const Duration(milliseconds: 150), () => onIntegerChanged(value));
+    timer = Timer(
+      const Duration(milliseconds: 150),
+      () => onIntegerChanged(value),
+    );
   }
 }
