@@ -16,12 +16,19 @@ final Map<String, String> _cn_restart = {
   I18n.failureIntervalHelp: '',
   I18n.serverUpdate: '强制设定服务执行时间',
   I18n.serverUpdateHelp: '如果设定不是默认的 "09:00:00",该任务每次执行完毕后会按下方的强制日期规则设定下次运行时间',
+
+  // 强制日期规则：仅在服务执行时间不为 09:00:00 时生效。
   'schedule_mode': '强制日期规则',
   'schedule_mode_help': '强制设定服务执行时间不为 09:00:00 时生效，选择按间隔天数或指定星期计算下次运行时间。',
   'interval_days': '间隔天数',
   'weekday': '指定星期',
   'weekdays': '运行星期（多选）',
   'weekdays_help': '选择任务允许运行的星期，只有强制日期规则为指定星期时生效。',
+  'delay_date': '强制日期间隔',
+  'delay_date_help': '启用上方强制设定执行时间时，自定义几天后强制执行，默认一天后即第二天',
+  'float_time': '随机延迟时间',
+  'float_time_help':
+      '防封，下次运行时间将在此范围内随机延迟，一般三五分钟即可。有强制执行时，确保不超出窗口：如麒麟19:00+2分钟，逢魔17:00+1.5小时，避免影响其他任务',
   I18n.harvestEnableHelp: '这个一个部分是为了在登录游戏时，自动点击赠送的奖励，是必选项',
   I18n.enableJade: '永久勾玉卡',
   I18n.enableSign: '每日签到',
@@ -34,9 +41,4 @@ final Map<String, String> _cn_restart = {
   'reset_task_datetime_enable_help': '勾选立即执行，记得反选掉',
   'reset_task_datetime': '重设的时间',
   'rest_task_datetime_help': '',
-  'float_time': '随机延迟时间',
-  'delay_date': '强制日期间隔',
-  'delay_date_help': '启用上方强制设定执行时间时，自定义几天后强制执行，默认一天后即第二天',
-  'float_time_help':
-      '防封，下次运行时间将在此范围内随机延迟，一般三五分钟即可。有强制执行时，确保不超出窗口：如麒麟19:00+2分钟，逢魔17:00+1.5小时，避免影响其他任务',
 };

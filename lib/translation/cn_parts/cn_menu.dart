@@ -54,6 +54,6 @@ final Map<String, String> _cn_menu = {
   I18n.metaDemon: '超鬼王',
   I18n.memoryScrolls: '绘卷',
   I18n.demonRetreat: '首领退治',
-  'MultiAccountTaskOrchestration': '多账号任务编排',
+  I18n.multiAccountTaskOrchestration: '多账号任务编排',
   I18n.dyeTrials: '灵染试炼',
 };

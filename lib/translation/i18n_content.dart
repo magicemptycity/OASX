@@ -324,7 +324,8 @@ class I18n {
       activityShikigami = 'ActivityShikigami';
   static const String metaDemon = 'MetaDemon',
       memoryScrolls = 'MemoryScrolls',
-      demonRetreat = 'DemonRetreat';
+      demonRetreat = 'DemonRetreat',
+      multiAccountTaskOrchestration = 'MultiAccountTaskOrchestration';
   static const String dyeTrials = 'DyeTrials',
       device = 'device',
       error = 'error';
