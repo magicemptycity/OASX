@@ -30,25 +30,85 @@ class UpdateDownloadCancelledException implements Exception {
 
 /// Handles download and checksum work for app update packages.
 class UpdatePackageIo {
+  static const Duration _connectTimeout = Duration(seconds: 15);
+  static const Duration _responseTimeout = Duration(seconds: 20);
+
   /// Fetches a JSON object from [url] with optional proxy support.
   static Future<Map<String, dynamic>> fetchJsonMap(
     String url, {
     String? proxyUrl,
   }) async {
     final httpClient = HttpClient();
+    httpClient.connectionTimeout = _connectTimeout;
+    httpClient.idleTimeout = _responseTimeout;
     _configureProxy(httpClient, proxyUrl);
     try {
-      final request = await httpClient.getUrl(Uri.parse(url));
-      final response = await request.close();
+      final request = await httpClient
+          .getUrl(Uri.parse(url))
+          .timeout(_connectTimeout);
+      request.headers.set(HttpHeaders.userAgentHeader, 'OASX-Updater');
+      request.headers.set(
+        HttpHeaders.acceptHeader,
+        'application/vnd.github+json',
+      );
+      request.headers.set('X-GitHub-Api-Version', '2022-11-28');
+      final response = await request.close().timeout(_responseTimeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException('request_failed_${response.statusCode}');
       }
-      final body = await utf8.decoder.bind(response).join();
+      final body = await utf8
+          .decoder
+          .bind(response)
+          .join()
+          .timeout(_responseTimeout);
       final decoded = jsonDecode(body);
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('invalid_json_payload');
       }
       return decoded;
+    } finally {
+      httpClient.close();
+    }
+  }
+
+  /// Resolves the release tag exposed by a GitHub `/releases/latest` redirect.
+  static Future<String> fetchLatestReleaseTag(
+    String url, {
+    String? proxyUrl,
+  }) async {
+    final sourceUri = Uri.parse(url);
+    final httpClient = HttpClient();
+    httpClient.connectionTimeout = _connectTimeout;
+    httpClient.idleTimeout = _responseTimeout;
+    _configureProxy(httpClient, proxyUrl);
+    try {
+      final request = await httpClient
+          .getUrl(sourceUri)
+          .timeout(_connectTimeout);
+      request.followRedirects = false;
+      request.headers.set(HttpHeaders.userAgentHeader, 'OASX-Updater');
+      request.headers.set(HttpHeaders.acceptHeader, 'text/html');
+      final response = await request.close().timeout(_responseTimeout);
+      final statusCode = response.statusCode;
+      final location = response.headers.value(HttpHeaders.locationHeader);
+      await response.drain<void>().timeout(_responseTimeout);
+      if (statusCode < 300 || statusCode >= 400) {
+        throw HttpException('redirect_request_failed_$statusCode');
+      }
+      if (location == null || location.trim().isEmpty) {
+        throw const FormatException('missing_release_redirect');
+      }
+      final redirectUri = sourceUri.resolve(location.trim());
+      final pathSegments = redirectUri.pathSegments;
+      final tagIndex = pathSegments.lastIndexOf('tag');
+      if (tagIndex < 0 || tagIndex + 1 >= pathSegments.length) {
+        throw const FormatException('invalid_release_redirect');
+      }
+      final tag = pathSegments[tagIndex + 1].trim();
+      if (tag.isEmpty) {
+        throw const FormatException('invalid_release_tag');
+      }
+      return tag;
     } finally {
       httpClient.close();
     }

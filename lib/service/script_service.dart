@@ -27,6 +27,10 @@ class ScriptService extends GetxService {
   final scriptModelMap = <String, ScriptModel>{}.obs;
   final scriptOrderList = <String>[].obs;
   final autoScriptList = <String>[].obs;
+  final _statusSubscriptions = <String, StreamSubscription<WsStatus>>{};
+  Timer? _backendReconnectRefreshTimer;
+
+  Future<void> Function()? onBackendReconnected;
 
   /// Virtual scheduler events sent by multi-account task executors.
   final multiAccountOverviewEvents = <String, Map<String, dynamic>>{}.obs;
@@ -52,6 +56,12 @@ class ScriptService extends GetxService {
 
   @override
   Future<void> onClose() async {
+    _backendReconnectRefreshTimer?.cancel();
+    await Future.wait(
+      _statusSubscriptions.values.map((subscription) => subscription.cancel()),
+    );
+    _statusSubscriptions.clear();
+    onBackendReconnected = null;
     await Future.wait([
       ...scriptModelMap.keys.map(
         (e) => Future.wait([
@@ -65,6 +75,24 @@ class ScriptService extends GetxService {
     scriptModelMap.clear();
     multiAccountOverviewEvents.clear();
     super.onClose();
+  }
+
+  void scheduleBackendRefreshAfterReconnect() {
+    _backendReconnectRefreshTimer?.cancel();
+    _backendReconnectRefreshTimer = Timer(
+      const Duration(milliseconds: 800),
+      () async {
+        final callback = onBackendReconnected;
+        if (callback == null) {
+          return;
+        }
+        try {
+          await callback();
+        } catch (error) {
+          printError(info: 'backend reconnect refresh failed: $error');
+        }
+      },
+    );
   }
 
   void addScriptModel(dynamic sm) {
@@ -170,6 +198,9 @@ class ScriptService extends GetxService {
       return;
     }
     await Future.wait(scriptList.map((name) => connectScript(name)));
+    await Future.wait(
+      scriptList.map((name) => wsService.send(name, 'get_schedule')),
+    );
   }
 
   Future<void> resetDashboardState() async {
