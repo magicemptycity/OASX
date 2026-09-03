@@ -155,6 +155,7 @@ class TaskStatusRow extends StatelessWidget {
     required this.quickScheduleLocked,
     this.showQuickActions = true,
     this.leadingActions = const [],
+    this.trailingActions = const [],
     required this.onSetNextRun,
     required this.onQuickRun,
     required this.onQuickWait,
@@ -177,6 +178,9 @@ class TaskStatusRow extends StatelessWidget {
 
   /// Feature-specific actions rendered immediately before quick-run actions.
   final List<Widget> leadingActions;
+
+  /// Feature-specific actions rendered immediately after the settings action.
+  final List<Widget> trailingActions;
   final Future<void> Function(String taskName, String nextRun) onSetNextRun;
   final Future<void> Function(String taskName) onQuickRun;
   final Future<void> Function(String taskName) onQuickWait;
@@ -222,9 +226,11 @@ class TaskStatusRow extends StatelessWidget {
             : null,
         showQuickActions: showQuickActions,
         leadingActions: leadingActions,
+        trailingActions: trailingActions,
         onEditTask: () => onEditTask(task.name),
       ),
-      trailingExtent: _actionExtent + leadingActions.length * 40,
+      trailingExtent:
+          _actionExtent + (leadingActions.length + trailingActions.length) * 40,
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:expansion_tile_group/expansion_tile_group.dart';
 import 'package:oasx/modules/home/widgets/task_status_row.dart';
 import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_row_layout.dart';
-import 'package:oasx/modules/home/widgets/task_catalog_section_card.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_panel.dart';
 import 'package:get/get.dart';
 import 'package:oasx/api/api_client.dart';
@@ -12,14 +11,23 @@ import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
-import 'package:oasx/modules/home/widgets/multi_account_task_list_layout.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
+import 'package:oasx/modules/home/widgets/multi_account_enable_tasks_dialog.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 enum _FixedTaskFilter { all, enabled, disabled }
 
 enum _OrchestrationView { overview, tasks }
+
+enum _OrchestrationSettingsPage {
+  none,
+  public,
+  accountTask,
+  batchScheduler,
+  batchTaskList,
+  batchTask,
+}
 
 /// 多账号任务编排的独立配置面板。
 class MultiAccountTaskOrchestrationPanel extends StatefulWidget {
@@ -44,6 +52,7 @@ class MultiAccountTaskOrchestrationPanel extends StatefulWidget {
 class _MultiAccountTaskOrchestrationPanelState
     extends State<MultiAccountTaskOrchestrationPanel> {
   late Future<Map<String, dynamic>> _stateFuture;
+  late final Future<Map<String, List<String>>> _menuFuture;
   final Rxn<Map<String, dynamic>> _liveState = Rxn<Map<String, dynamic>>();
   final ScriptService _scriptService = Get.find<ScriptService>();
   Worker? _overviewWorker;
@@ -54,6 +63,15 @@ class _MultiAccountTaskOrchestrationPanelState
   _FixedTaskFilter _specialTaskFilter = _FixedTaskFilter.enabled;
   _OrchestrationView _view = _OrchestrationView.overview;
   int _stateGeneration = 0;
+  _OrchestrationSettingsPage _settingsPage = _OrchestrationSettingsPage.none;
+  int? _settingsAccountIndex;
+  String _settingsTaskName = '';
+  String _settingsTaskDisplayName = '';
+  String _settingsBatchId = '';
+  String _settingsBatchDisplayName = '';
+  bool _embeddedBatchShowAllTasks = false;
+  int _embeddedBatchTaskListGeneration = 0;
+  _OrchestrationSettingsPage? _returnToBatchPage;
 
   @override
   void initState() {
@@ -62,6 +80,7 @@ class _MultiAccountTaskOrchestrationPanelState
       scriptName: widget.scriptName,
     );
     _watchState(_stateFuture);
+    _menuFuture = ApiClient().getScriptMenu();
     _bindOverviewPush();
     _bindNativeScheduleRefresh();
   }
@@ -80,6 +99,13 @@ class _MultiAccountTaskOrchestrationPanelState
       return;
     }
     _selectedAccount = 1;
+    _settingsPage = _OrchestrationSettingsPage.none;
+    _settingsAccountIndex = null;
+    _settingsTaskName = '';
+    _settingsTaskDisplayName = '';
+    _settingsBatchId = '';
+    _settingsBatchDisplayName = '';
+    _returnToBatchPage = null;
     _bindNativeScheduleRefresh();
     _activeOverviewTask = null;
     _reload();
@@ -87,6 +113,9 @@ class _MultiAccountTaskOrchestrationPanelState
 
   @override
   Widget build(BuildContext context) {
+    if (_settingsPage != _OrchestrationSettingsPage.none) {
+      return _buildSettingsPage(context);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -293,7 +322,7 @@ class _MultiAccountTaskOrchestrationPanelState
                   label: '公共账号库'.tr,
                 ),
                 buildAccountManagementButton(
-                  onPressed: _showPublicSettings,
+                  onPressed: _openPublicSettings,
                   icon: Icons.settings_rounded,
                   label: '公共配置'.tr,
                 ),
@@ -468,7 +497,7 @@ class _MultiAccountTaskOrchestrationPanelState
                 icon: Icons.list_alt_rounded,
                 tooltip: '任务列表'.tr,
                 onPressed: () =>
-                    _showFixedTimeBatchTaskListDialog(accountIndex, item),
+                    _openFixedTimeBatchTaskList(accountIndex, item),
               ),
             ],
       onSetNextRun: (_, value) => isSingle
@@ -481,12 +510,12 @@ class _MultiAccountTaskOrchestrationPanelState
           ? _quickScheduleSingleTask(accountIndex, identifier, runNow: false)
           : _quickScheduleSpecialTask(accountIndex, identifier, runNow: false),
       onEditTask: (_) => isSingle
-          ? _showTaskSettings(
+          ? _openTaskSettings(
               accountIndex,
               identifier,
               '${item['name'] ?? identifier}',
             )
-          : _showFixedTimeBatchSchedulerSettings(accountIndex, item),
+          : _openFixedTimeBatchSchedulerSettings(accountIndex, item),
       onDisableTask: (_) => isSingle
           ? _setSingleTaskEnabled(accountIndex, identifier, false)
           : _disableFixedSpecialTask(accountIndex, identifier),
@@ -582,7 +611,7 @@ class _MultiAccountTaskOrchestrationPanelState
       canQuickScheduleOverride: (taskName) =>
           enabledKeys.contains(_fixedTaskKey(taskName)),
       onOpenTask: (taskName) =>
-          _showTaskSettings(accountIndex, taskName, taskName.tr),
+          _openTaskSettings(accountIndex, taskName, taskName.tr),
       onQuickRun: (taskName) =>
           _quickScheduleSingleTask(accountIndex, taskName, runNow: true),
       onQuickWait: (taskName) =>
@@ -722,13 +751,12 @@ class _MultiAccountTaskOrchestrationPanelState
             TaskCatalogIconOnlyButton(
               icon: Icons.tune_rounded,
               tooltip: I18n.homeOpenTaskParams.tr,
-              onPressed: isEnabled
-                  ? () => _showTaskSettings(
-                      accountIndex,
-                      taskName,
-                      '${task['task_display_name'] ?? taskName}',
-                    )
-                  : null,
+              // 未启用任务也可以先保存私有配置；首次保存由后端创建停用项。
+              onPressed: () => _openTaskSettings(
+                accountIndex,
+                taskName,
+                '${task['task_display_name'] ?? taskName}',
+              ),
             ),
           ],
         ),
@@ -947,7 +975,7 @@ class _MultiAccountTaskOrchestrationPanelState
             tooltip: '任务与调度器设置'.tr,
             onPressed: taskName.isEmpty
                 ? null
-                : () => _showTaskSettings(
+                : () => _openTaskSettings(
                     accountIndex,
                     taskName,
                     '${task['name'] ?? taskName}',
@@ -1093,7 +1121,7 @@ class _MultiAccountTaskOrchestrationPanelState
                 tooltip: '调度器设置'.tr,
                 onPressed: !canEdit
                     ? null
-                    : () => _showFixedTimeBatchSchedulerSettings(
+                    : () => _openFixedTimeBatchSchedulerSettings(
                         accountIndex,
                         batch,
                       ),
@@ -1103,10 +1131,7 @@ class _MultiAccountTaskOrchestrationPanelState
                 tooltip: '${'任务列表'.tr}（${tasks.length}）',
                 onPressed: !canEdit
                     ? null
-                    : () => _showFixedTimeBatchTaskListDialog(
-                        accountIndex,
-                        batch,
-                      ),
+                    : () => _openFixedTimeBatchTaskList(accountIndex, batch),
                 icon: const Icon(Icons.list_alt_rounded),
               ),
               IconButton(
@@ -1316,7 +1341,7 @@ class _MultiAccountTaskOrchestrationPanelState
                             tooltip: '设置私有配置'.tr,
                             onPressed: loading || taskName.isEmpty
                                 ? null
-                                : () => _showTaskSettings(
+                                : () => _openTaskSettings(
                                     accountIndex,
                                     taskName,
                                     taskDisplayName,
@@ -1884,11 +1909,11 @@ class _MultiAccountTaskOrchestrationPanelState
         : values.map((day) => labels[day]).join('、');
   }
 
-  Future<void> _showFixedTimeBatchSchedulerSettings(
+  Future<void> _openFixedTimeBatchSchedulerSettings(
     int accountIndex,
     Map<String, dynamic> batch,
   ) async {
-    final batchId = '${batch['batch_id'] ?? ''}';
+    final batchId = '${batch['batch_id'] ?? ''}'.trim();
     if (batchId.isEmpty) return;
     final data = await ApiClient()
         .getMultiAccountTaskOrchestrationFixedTimeBatchSchedulerArgs(
@@ -1916,44 +1941,36 @@ class _MultiAccountTaskOrchestrationPanelState
       },
     );
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 620,
-          child: Column(
-            children: [
-              ListTile(
-                title: const Text('顺序任务组调度器设置'),
-                subtitle: const Text(
-                  '直接使用 OAS 原生 Scheduler：下次运行、优先级、间隔、星期和随机延迟。',
-                ),
-                trailing: IconButton(
-                  tooltip: '关闭'.tr,
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: widget.scriptName,
-                  taskName: 'MultiAccountTaskOrchestration',
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await args.discardDraftChanges();
-    if (mounted) _reload();
+    setState(() {
+      _settingsPage = _OrchestrationSettingsPage.batchScheduler;
+      _settingsAccountIndex = accountIndex;
+      _settingsTaskName = '';
+      _settingsTaskDisplayName = '';
+      _settingsBatchId = batchId;
+      _settingsBatchDisplayName =
+          '${batch['name'] ?? batch['run_time'] ?? '--:--'}';
+      _returnToBatchPage = null;
+    });
+  }
+
+  void _openFixedTimeBatchTaskList(
+    int accountIndex,
+    Map<String, dynamic> batch,
+  ) {
+    final batchId = '${batch['batch_id'] ?? ''}'.trim();
+    if (batchId.isEmpty) return;
+    setState(() {
+      _settingsPage = _OrchestrationSettingsPage.batchTaskList;
+      _settingsAccountIndex = accountIndex;
+      _settingsTaskName = '';
+      _settingsTaskDisplayName = '';
+      _settingsBatchId = batchId;
+      _settingsBatchDisplayName =
+          '${batch['name'] ?? batch['run_time'] ?? '--:--'}';
+      _embeddedBatchShowAllTasks = false;
+      _embeddedBatchTaskListGeneration++;
+      _returnToBatchPage = null;
+    });
   }
 
   Future<bool> _disableFixedSpecialTask(
@@ -1986,482 +2003,224 @@ class _MultiAccountTaskOrchestrationPanelState
     }
   }
 
-  Future<void> _showFixedTimeBatchTaskListDialog(
+  Widget _buildEmbeddedBatchTaskList(
+    BuildContext context,
     int accountIndex,
-    Map<String, dynamic> batch,
-  ) async {
-    final batchId = '${batch['batch_id'] ?? ''}'.trim();
-    if (batchId.isEmpty) return;
-    final menu = await ApiClient().getScriptMenu();
-    final catalog = await ApiClient()
-        .getMultiAccountTaskOrchestrationFixedTimeTasks(
-          scriptName: widget.scriptName,
-        );
-    if (!mounted) return;
-
-    final currentTasks = _maps(batch['tasks']).map(Map.of).toList();
-    final catalogByKey = <String, Map<String, dynamic>>{
-      for (final task in catalog)
-        _fixedTaskKey('${task['task_name'] ?? ''}'): task,
-    };
-    final searchController = TextEditingController();
-    var showAllTasks = false;
-    var searchQuery = '';
-    var taskFilter = _FixedTaskFilter.all;
-    final hiddenOverviewTaskKeys = <String>{};
-    final toggling = <String>{};
-    final expandedGroups = <String>{};
-
-    Future<void> toggleTask(
-      StateSetter setDialogState,
-      Map<String, dynamic> task,
-      bool enable,
-    ) async {
-      final taskName = '${task['task_name'] ?? ''}'.trim();
-      final key = _fixedTaskKey(taskName);
-      if (taskName.isEmpty || toggling.contains(key)) return;
-      setDialogState(() => toggling.add(key));
-      final hasExistingTask = currentTasks.any(
-        (item) => _fixedTaskKey('${item['task_name'] ?? ''}') == key,
-      );
-      final ok = enable && !hasExistingTask
-          ? await ApiClient()
-                .addMultiAccountTaskOrchestrationFixedTimeBatchTask(
-                  scriptName: widget.scriptName,
-                  accountIndex: accountIndex,
-                  batchId: batchId,
-                  taskName: taskName,
-                )
-          : await ApiClient()
-                .setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable(
-                  scriptName: widget.scriptName,
-                  accountIndex: accountIndex,
-                  batchId: batchId,
-                  taskName: taskName,
-                  enable: enable,
-                );
-      if (!mounted) return;
-      setDialogState(() {
-        toggling.remove(key);
-        if (!ok) return;
-        final existingTask = currentTasks
-            .cast<Map<String, dynamic>?>()
-            .firstWhere(
-              (item) =>
-                  item != null &&
-                  _fixedTaskKey('${item['task_name'] ?? ''}') == key,
-              orElse: () => null,
-            );
-        if (existingTask == null) {
-          if (enable) {
-            currentTasks.add(<String, dynamic>{...task, 'enable': true});
-          }
-        } else {
-          // 停用仅变更 enable，私有配置和运行记录仍保留在服务端任务项中。
-          existingTask['enable'] = enable;
-          if (enable) hiddenOverviewTaskKeys.remove(key);
-        }
-      });
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final configuredByKey = <String, Map<String, dynamic>>{
-            for (final task in currentTasks.where(
-              (task) => task['enable'] != false,
-            ))
-              _fixedTaskKey('${task['task_name'] ?? ''}'): task,
-          };
-          final query = searchQuery.trim().toLowerCase();
-          final sections = menu.entries
-              .map((entry) {
-                final tasks = entry.value
-                    .map(
-                      (name) => Map<String, dynamic>.from(
-                        catalogByKey[_fixedTaskKey(name)] ??
-                            <String, dynamic>{
-                              'task_name': name,
-                              'task_display_name': name,
-                              'supported': false,
-                            },
-                      ),
-                    )
-                    .where((task) {
-                      final taskKey = _fixedTaskKey(
-                        '${task['task_name'] ?? ''}',
-                      );
-                      final enabled = configuredByKey.containsKey(taskKey);
-                      final filterMatches = switch (taskFilter) {
-                        _FixedTaskFilter.all => true,
-                        _FixedTaskFilter.enabled => enabled,
-                        _FixedTaskFilter.disabled => !enabled,
-                      };
-                      if (!filterMatches) return false;
-                      if (query.isEmpty) return true;
-                      final name = '${task['task_name'] ?? ''}'.toLowerCase();
-                      final display = '${task['task_display_name'] ?? name}'
-                          .toLowerCase();
-                      return name.contains(query) || display.contains(query);
-                    })
-                    .toList();
-                return MapEntry(entry.key, tasks);
-              })
-              .where((entry) => entry.value.isNotEmpty)
-              .toList();
-          final overviewTasks = currentTasks.where((task) {
-            final taskKey = _fixedTaskKey('${task['task_name'] ?? ''}');
-            if (task['enable'] == false ||
-                hiddenOverviewTaskKeys.contains(taskKey)) {
-              return false;
-            }
-            if (query.isEmpty) return true;
-            final name = '${task['task_name'] ?? ''}'.toLowerCase();
-            final display = '${task['task_display_name'] ?? name}'
-                .toLowerCase();
-            return name.contains(query) || display.contains(query);
-          }).toList();
-          return AlertDialog(
-            title: Text(
-              '${batch['name'] ?? batch['run_time'] ?? '--:--'}：任务列表',
-            ),
-            content: SizedBox(
-              width: 620,
-              height: multiAccountTaskListMinHeight,
-              child: Column(
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: Text('总览'.tr),
-                        selected: !showAllTasks,
-                        showCheckmark: false,
-                        onSelected: (_) =>
-                            setDialogState(() => showAllTasks = false),
-                      ),
-                      ChoiceChip(
-                        label: Text('任务'.tr),
-                        selected: showAllTasks,
-                        showCheckmark: false,
-                        onSelected: (_) =>
-                            setDialogState(() => showAllTasks = true),
-                      ),
-                    ],
+    String batchId,
+    String batchDisplayName, {
+    required double listHeight,
+  }) {
+    final account = _maps(_liveState.value?['accounts']).firstWhere(
+      (item) => item['index'] == accountIndex,
+      orElse: () => <String, dynamic>{},
+    );
+    final batch = _maps(account['fixed_time_batches']).firstWhere(
+      (item) => item['batch_id'] == batchId,
+      orElse: () => <String, dynamic>{},
+    );
+    final tasks = _maps(batch['tasks']);
+    final enabledTasks = tasks
+        .where((task) => task['enable'] != false)
+        .toList();
+    return Card(
+      color: Theme.of(
+        context,
+      ).colorScheme.secondaryContainer.withValues(alpha: 0.24),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$batchDisplayName：${'任务列表'.tr}',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: searchController,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            hintText: '搜索任务'.tr,
-                            border: const OutlineInputBorder(),
+                ),
+                const Icon(Icons.list_alt_rounded),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: Text('总览'.tr),
+                  selected: !_embeddedBatchShowAllTasks,
+                  showCheckmark: false,
+                  onSelected: (_) =>
+                      setState(() => _embeddedBatchShowAllTasks = false),
+                ),
+                ChoiceChip(
+                  label: Text('任务'.tr),
+                  selected: _embeddedBatchShowAllTasks,
+                  showCheckmark: false,
+                  onSelected: (_) =>
+                      setState(() => _embeddedBatchShowAllTasks = true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: listHeight,
+              child: _embeddedBatchShowAllTasks
+                  ? TaskCatalogPanel(
+                      key: ValueKey<String>(
+                        'orchestration-batch-catalog-$accountIndex-$batchId-$_embeddedBatchTaskListGeneration',
+                      ),
+                      embedded: true,
+                      controller: widget.controller,
+                      scriptModel: widget.scriptModel,
+                      catalogGeneration: _embeddedBatchTaskListGeneration,
+                      isTaskEnabledOverride: (taskName) => tasks.any(
+                        (task) =>
+                            _fixedTaskKey('${task['task_name'] ?? ''}') ==
+                                _fixedTaskKey(taskName) &&
+                            task['enable'] != false,
+                      ),
+                      onToggleEnabledOverride: (taskName, enable) =>
+                          _toggleEmbeddedBatchTask(
+                            accountIndex,
+                            batchId,
+                            tasks,
+                            taskName,
+                            enable,
                           ),
-                          onChanged: (value) => setDialogState(
-                            () => searchQuery = value.trim().toLowerCase(),
+                      canQuickScheduleOverride: (_) => false,
+                      onOpenTask: (taskName) => _openFixedTimeBatchTaskSettings(
+                        accountIndex,
+                        batchId,
+                        taskName,
+                        taskName.tr,
+                        batchDisplayName: batchDisplayName,
+                        returnToBatchPage:
+                            _OrchestrationSettingsPage.batchTaskList,
+                      ),
+                      onQuickRun: (_) async {},
+                      onQuickWait: (_) async {},
+                    )
+                  : enabledTasks.isEmpty
+                  ? Center(child: Text('当前顺序任务组还没有任务'.tr))
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            '长按任务可拖动排序，顺序即该任务组的实际执行顺序。'.tr,
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
-                      ),
-                      if (showAllTasks) ...[
-                        const SizedBox(width: 8),
-                        PopupMenuButton<_FixedTaskFilter>(
-                          tooltip: _fixedTaskFilterLabel(taskFilter),
-                          initialValue: taskFilter,
-                          onSelected: (value) =>
-                              setDialogState(() => taskFilter = value),
-                          itemBuilder: (context) => _FixedTaskFilter.values
-                              .map(
-                                (value) => PopupMenuItem<_FixedTaskFilter>(
-                                  value: value,
-                                  child: Text(_fixedTaskFilterLabel(value)),
+                        Expanded(
+                          child: ReorderableListView.builder(
+                            buildDefaultDragHandles: false,
+                            itemCount: enabledTasks.length,
+                            onReorder: (oldIndex, newIndex) =>
+                                _reorderEmbeddedBatchTasks(
+                                  accountIndex,
+                                  batchId,
+                                  enabledTasks,
+                                  oldIndex,
+                                  newIndex,
                                 ),
-                              )
-                              .toList(),
-                          icon: Icon(
-                            Icons.filter_list_rounded,
-                            color: taskFilter == _FixedTaskFilter.all
-                                ? null
-                                : Theme.of(context).colorScheme.primary,
+                            itemBuilder: (context, index) {
+                              final task = enabledTasks[index];
+                              final taskName = '${task['task_name'] ?? ''}';
+                              return ReorderableDelayedDragStartListener(
+                                key: ValueKey<String>(
+                                  'orchestration-embedded-reorder:$batchId:$taskName',
+                                ),
+                                index: index,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: _buildFixedSpecialTaskOverviewRow(
+                                    accountIndex,
+                                    batchId,
+                                    task,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: showAllTasks
-                        ? sections.isEmpty
-                              ? Center(child: Text('未找到匹配任务'.tr))
-                              : ListView(
-                                  children: [
-                                    Column(
-                                      children: [
-                                        for (
-                                          int sectionIndex = 0;
-                                          sectionIndex < sections.length;
-                                          sectionIndex++
-                                        ) ...[
-                                          if (sectionIndex > 0)
-                                            const SizedBox(height: 10),
-                                          Builder(
-                                            builder: (context) {
-                                              final section =
-                                                  sections[sectionIndex];
-                                              final expanded =
-                                                  searchQuery.isNotEmpty ||
-                                                  expandedGroups.contains(
-                                                    section.key,
-                                                  );
-                                              return TaskCatalogSectionCard(
-                                                header: Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons
-                                                          .drag_indicator_outlined,
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Expanded(
-                                                      child: Text(
-                                                        section.key.tr,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Text(
-                                                      '${section.value.length}',
-                                                      style: Theme.of(
-                                                        context,
-                                                      ).textTheme.labelMedium,
-                                                    ),
-                                                  ],
-                                                ),
-                                                expanded: expanded,
-                                                forceExpanded:
-                                                    searchQuery.isNotEmpty,
-                                                onToggleExpanded: () =>
-                                                    setDialogState(() {
-                                                      if (expanded) {
-                                                        expandedGroups.remove(
-                                                          section.key,
-                                                        );
-                                                      } else {
-                                                        expandedGroups.add(
-                                                          section.key,
-                                                        );
-                                                      }
-                                                    }),
-                                                children: [
-                                                  for (
-                                                    int taskIndex = 0;
-                                                    taskIndex <
-                                                        section.value.length;
-                                                    taskIndex++
-                                                  ) ...[
-                                                    if (taskIndex > 0)
-                                                      const Divider(height: 1),
-                                                    Builder(
-                                                      builder: (context) {
-                                                        final task = section
-                                                            .value[taskIndex];
-                                                        final taskName =
-                                                            '${task['task_name'] ?? ''}'
-                                                                .trim();
-                                                        final taskKey =
-                                                            _fixedTaskKey(
-                                                              taskName,
-                                                            );
-                                                        final isScriptTask =
-                                                            section.key ==
-                                                            I18n.script;
-                                                        final supportsEnable =
-                                                            !isScriptTask ||
-                                                            taskName ==
-                                                                'Restart';
-                                                        final enabled =
-                                                            configuredByKey
-                                                                .containsKey(
-                                                                  taskKey,
-                                                                );
-                                                        return Padding(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                vertical: 8,
-                                                              ),
-                                                          child: TaskCatalogSplitRow(
-                                                            scrollKey:
-                                                                PageStorageKey<
-                                                                  String
-                                                                >(
-                                                                  'fixed-batch-task-$batchId-$taskName',
-                                                                ),
-                                                            taskLabel: Text(
-                                                              '${task['task_display_name'] ?? taskName}'
-                                                                  .tr,
-                                                              maxLines: 1,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .visible,
-                                                              softWrap: false,
-                                                              style:
-                                                                  Theme.of(
-                                                                        context,
-                                                                      )
-                                                                      .textTheme
-                                                                      .bodyLarge,
-                                                            ),
-                                                            supportsEnable:
-                                                                supportsEnable,
-                                                            enabled: enabled,
-                                                            loading: toggling
-                                                                .contains(
-                                                                  taskKey,
-                                                                ),
-                                                            onToggleEnabled:
-                                                                !supportsEnable ||
-                                                                    toggling
-                                                                        .contains(
-                                                                          taskKey,
-                                                                        )
-                                                                ? null
-                                                                : (
-                                                                    value,
-                                                                  ) => toggleTask(
-                                                                    setDialogState,
-                                                                    task,
-                                                                    value,
-                                                                  ),
-                                                            trailing: Row(
-                                                              mainAxisSize:
-                                                                  MainAxisSize
-                                                                      .min,
-                                                              children: [
-                                                                TaskCatalogIconOnlyButton(
-                                                                  icon: Icons
-                                                                      .tune_rounded,
-                                                                  tooltip: I18n
-                                                                      .homeOpenTaskParams
-                                                                      .tr,
-                                                                  // 与新普通任务页一致：即使当前未启用，
-                                                                  // 也可以预先维护该任务的私有配置。
-                                                                  onPressed: () async {
-                                                                    await _showFixedTimeBatchTaskSettings(
-                                                                      accountIndex,
-                                                                      batchId,
-                                                                      taskName,
-                                                                      '${task['task_display_name'] ?? taskName}',
-                                                                    );
-                                                                  },
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                    ),
-                                                  ],
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
-                                )
-                        : overviewTasks.isEmpty
-                        ? Center(child: Text('当前顺序任务组还没有任务'.tr))
-                        : searchQuery.isEmpty
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Text(
-                                  '长按任务可拖动排序，顺序即该任务组的实际执行顺序。'.tr,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ),
-                              Expanded(
-                                child: ReorderableListView.builder(
-                                  buildDefaultDragHandles: false,
-                                  itemCount: overviewTasks.length,
-                                  onReorder: (oldIndex, newIndex) =>
-                                      _reorderFixedSpecialTaskTasks(
-                                        accountIndex,
-                                        batchId,
-                                        overviewTasks,
-                                        currentTasks,
-                                        setDialogState,
-                                        oldIndex,
-                                        newIndex,
-                                      ),
-                                  itemBuilder: (context, index) {
-                                    final task = overviewTasks[index];
-                                    final taskName =
-                                        '${task['task_name'] ?? ''}'.trim();
-                                    return ReorderableDelayedDragStartListener(
-                                      key: ValueKey(
-                                        'fixed-special-reorder:$batchId:$taskName',
-                                      ),
-                                      index: index,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                        ),
-                                        child:
-                                            _buildFixedSpecialTaskOverviewRow(
-                                              dialogContext,
-                                              accountIndex,
-                                              batchId,
-                                              task,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          )
-                        : ListView.separated(
-                            itemCount: overviewTasks.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (context, index) =>
-                                _buildFixedSpecialTaskOverviewRow(
-                                  dialogContext,
-                                  accountIndex,
-                                  batchId,
-                                  overviewTasks[index],
-                                ),
-                          ),
-                  ),
-                ],
-              ),
+                    ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text('关闭'.tr),
-              ),
-            ],
-          );
-        },
+          ],
+        ),
       ),
     );
-    searchController.dispose();
-    if (mounted) _reload();
+  }
+
+  Future<bool> _toggleEmbeddedBatchTask(
+    int accountIndex,
+    String batchId,
+    List<Map<String, dynamic>> currentTasks,
+    String taskName,
+    bool enable,
+  ) async {
+    final hasEntry = currentTasks.any(
+      (task) =>
+          _fixedTaskKey('${task['task_name'] ?? ''}') ==
+          _fixedTaskKey(taskName),
+    );
+    final ok = enable && !hasEntry
+        ? await ApiClient().addMultiAccountTaskOrchestrationFixedTimeBatchTask(
+            scriptName: widget.scriptName,
+            accountIndex: accountIndex,
+            batchId: batchId,
+            taskName: taskName,
+          )
+        : await ApiClient()
+              .setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable(
+                scriptName: widget.scriptName,
+                accountIndex: accountIndex,
+                batchId: batchId,
+                taskName: taskName,
+                enable: enable,
+              );
+    if (ok && mounted) {
+      setState(() => _embeddedBatchTaskListGeneration++);
+      _reload();
+    }
+    return ok;
+  }
+
+  Future<void> _reorderEmbeddedBatchTasks(
+    int accountIndex,
+    String batchId,
+    List<Map<String, dynamic>> tasks,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex == newIndex) return;
+    final reordered = [...tasks];
+    final moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, moved);
+    final ok = await ApiClient()
+        .reorderMultiAccountTaskOrchestrationSpecialTaskTasks(
+          scriptName: widget.scriptName,
+          accountIndex: accountIndex,
+          batchId: batchId,
+          taskNames: reordered
+              .map((task) => '${task['task_name'] ?? ''}')
+              .where((name) => name.isNotEmpty)
+              .toList(),
+        );
+    if (ok && mounted) {
+      setState(() => _embeddedBatchTaskListGeneration++);
+      _reload();
+    }
   }
 
   Widget _buildFixedSpecialTaskOverviewRow(
-    BuildContext dialogContext,
     int accountIndex,
     String batchId,
     Map<String, dynamic> task,
@@ -2502,15 +2261,35 @@ class _MultiAccountTaskOrchestrationPanelState
           ),
         ),
       ],
+      // “删除”仅停用当前顺序任务组内的任务，私有配置和进度均保留。
+      trailingActions: [
+        TaskStatusActionIcon(
+          icon: Icons.delete_outline_rounded,
+          tooltip: '停用任务'.tr,
+          onPressed: () async {
+            final ok = await ApiClient()
+                .setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable(
+                  scriptName: widget.scriptName,
+                  accountIndex: accountIndex,
+                  batchId: batchId,
+                  taskName: taskName,
+                  enable: false,
+                );
+            if (ok) _reload();
+          },
+        ),
+      ],
       onSetNextRun: (_, __) async {},
       onQuickRun: (_) async {},
       onQuickWait: (_) async {},
       onEditTask: (_) async {
-        await _showFixedTimeBatchTaskSettings(
+        await _openFixedTimeBatchTaskSettings(
           accountIndex,
           batchId,
           taskName,
           displayName,
+          batchDisplayName: _batchLabelById(accountIndex, batchId),
+          returnToBatchPage: _OrchestrationSettingsPage.batchTaskList,
         );
       },
       onDisableTask: (_) async {
@@ -2530,37 +2309,6 @@ class _MultiAccountTaskOrchestrationPanelState
       swipeEnabled: true,
       activeDragPayload: null,
     );
-  }
-
-  Future<void> _reorderFixedSpecialTaskTasks(
-    int accountIndex,
-    String batchId,
-    List<Map<String, dynamic>> tasks,
-    List<Map<String, dynamic>> currentTasks,
-    StateSetter setDialogState,
-    int oldIndex,
-    int newIndex,
-  ) async {
-    if (newIndex > oldIndex) newIndex -= 1;
-    if (oldIndex == newIndex) return;
-    final reordered = [...tasks];
-    final moved = reordered.removeAt(oldIndex);
-    reordered.insert(newIndex, moved);
-    if (await ApiClient().reorderMultiAccountTaskOrchestrationSpecialTaskTasks(
-      scriptName: widget.scriptName,
-      accountIndex: accountIndex,
-      batchId: batchId,
-      taskNames: reordered
-          .map((task) => '${task['task_name'] ?? ''}')
-          .where((name) => name.isNotEmpty)
-          .toList(),
-    )) {
-      setDialogState(() {
-        currentTasks.removeWhere((task) => task['enable'] != false);
-        currentTasks.insertAll(0, reordered);
-      });
-      _reload();
-    }
   }
 
   Future<void> _showFixedSpecialTaskTaskStatusDialog(
@@ -2615,6 +2363,9 @@ class _MultiAccountTaskOrchestrationPanelState
       taskName: taskName,
       status: status,
     )) {
+      if (mounted) {
+        setState(() => _embeddedBatchTaskListGeneration++);
+      }
       _reload();
     }
   }
@@ -2629,12 +2380,14 @@ class _MultiAccountTaskOrchestrationPanelState
 
   String _fixedTaskKey(String value) =>
       value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-  Future<void> _showFixedTimeBatchTaskSettings(
+  Future<void> _openFixedTimeBatchTaskSettings(
     int accountIndex,
     String batchId,
     String taskName,
-    String taskDisplayName,
-  ) async {
+    String taskDisplayName, {
+    String batchDisplayName = '',
+    _OrchestrationSettingsPage? returnToBatchPage,
+  }) async {
     final data = await ApiClient()
         .getMultiAccountTaskOrchestrationFixedTimeBatchTaskArgs(
           scriptName: widget.scriptName,
@@ -2664,165 +2417,75 @@ class _MultiAccountTaskOrchestrationPanelState
       },
     );
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text('$taskDisplayName：任务组私有配置'),
-                subtitle: const Text('只对当前账号的当前顺序任务组生效。'),
-                trailing: Wrap(
-                  children: [
-                    IconButton(
-                      tooltip: '恢复默认配置'.tr,
-                      onPressed: () async {
-                        final ok = await ApiClient()
-                            .resetMultiAccountTaskOrchestrationFixedTimeBatchTaskPrivateConfigToDefault(
-                              scriptName: widget.scriptName,
-                              accountIndex: accountIndex,
-                              batchId: batchId,
-                              taskName: taskName,
-                            );
-                        if (ok && dialogContext.mounted) {
-                          Navigator.of(dialogContext).pop();
-                        }
-                      },
-                      icon: const Icon(Icons.restart_alt_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '关闭'.tr,
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: widget.scriptName,
-                  taskName: taskName,
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+    setState(() {
+      _settingsPage = _OrchestrationSettingsPage.batchTask;
+      _settingsAccountIndex = accountIndex;
+      _settingsTaskName = taskName;
+      _settingsTaskDisplayName = taskDisplayName;
+      _settingsBatchId = batchId;
+      _settingsBatchDisplayName = batchDisplayName;
+      _returnToBatchPage = returnToBatchPage;
+    });
+  }
+
+  String _batchLabelById(int accountIndex, String batchId) {
+    for (final account in _maps(_liveState.value?['accounts'])) {
+      if (account['index'] != accountIndex) continue;
+      for (final batch in _maps(account['fixed_time_batches'])) {
+        if (batch['batch_id'] == batchId) {
+          return '${batch['name'] ?? batch['run_time'] ?? '--:--'}';
+        }
+      }
+    }
+    return '顺序任务组'.tr;
+  }
+
+  Future<List<String>> _enableDialogTaskNames() async {
+    final values = await Future.wait<dynamic>([
+      _menuFuture,
+      ApiClient().getMultiAccountTaskOrchestrationFixedTimeTasks(
+        scriptName: widget.scriptName,
       ),
-    );
-    await args.discardDraftChanges();
-    if (mounted) _reload();
+    ]);
+    final menu = values[0] as Map<String, List<String>>;
+    final catalog = values[1] as List<Map<String, dynamic>>;
+    final supported = {
+      for (final task in catalog) _fixedTaskKey('${task['task_name'] ?? ''}'),
+    };
+    final seen = <String>{};
+    return [
+      for (final rawTaskName in menu.values.expand((items) => items))
+        if (() {
+          final taskName = rawTaskName.trim();
+          final key = _fixedTaskKey(taskName);
+          return taskName.isNotEmpty &&
+              supported.contains(key) &&
+              seen.add(key);
+        }())
+          rawTaskName.trim(),
+    ];
   }
 
   Future<void> _showAddTaskDialog(int accountIndex) async {
-    // 使用后端提供的可执行任务目录，任务名与已添加记录均为统一的下划线格式。
-    // 这样已添加任务能被正确识别并禁用，避免重复选择。
-    final catalog = await ApiClient()
-        .getMultiAccountTaskOrchestrationFixedTimeTasks(
-          scriptName: widget.scriptName,
-        );
     final state = await _stateFuture;
     if (!mounted) return;
     final account = _maps(state['accounts']).firstWhere(
       (item) => item['index'] == accountIndex,
       orElse: () => <String, dynamic>{},
     );
-    final existing = _maps(account['single_tasks'])
-        .map((task) => '${task['task_name'] ?? ''}'.trim())
-        .where((name) => name.isNotEmpty)
+    final enabledTaskNames = _maps(account['single_tasks'])
+        .where((task) => task['enable'] == true)
+        .map((task) => _fixedTaskKey('${task['task_name'] ?? ''}'))
         .toSet();
-    final searchController = TextEditingController();
-    var keyword = '';
-    final selected = <String>{};
-    final selectedTasks = await showDialog<List<String>>(
+    final selected = await showMultiAccountEnableTasksDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final normalized = keyword.trim().toLowerCase();
-          final filtered = catalog.where((task) {
-            final name = '${task['task_name'] ?? ''}'.toLowerCase();
-            final display = '${task['task_display_name'] ?? name}'
-                .toLowerCase();
-            return normalized.isEmpty ||
-                name.contains(normalized) ||
-                display.contains(normalized);
-          }).toList();
-          return AlertDialog(
-            title: Text('添加独立单任务'.tr),
-            content: SizedBox(
-              width: 520,
-              height: 560,
-              child: Column(
-                children: [
-                  TextField(
-                    controller: searchController,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search_rounded),
-                      hintText: '搜索所有任务',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) => setDialogState(() => keyword = value),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final task = filtered[index];
-                        final taskName = '${task['task_name'] ?? ''}'.trim();
-                        final displayName =
-                            '${task['task_display_name'] ?? taskName}'.trim();
-                        final alreadyAdded = existing.contains(taskName);
-                        return CheckboxListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          value: alreadyAdded || selected.contains(taskName),
-                          title: Text(displayName),
-                          subtitle: alreadyAdded ? const Text('已添加') : null,
-                          onChanged: alreadyAdded || taskName.isEmpty
-                              ? null
-                              : (checked) => setDialogState(() {
-                                  if (checked == true) {
-                                    selected.add(taskName);
-                                  } else {
-                                    selected.remove(taskName);
-                                  }
-                                }),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text('取消'.tr),
-              ),
-              FilledButton(
-                onPressed: selected.isEmpty
-                    ? null
-                    : () => Navigator.of(dialogContext).pop(selected.toList()),
-                child: const Text('添加独立单任务'),
-              ),
-            ],
-          );
-        },
-      ),
+      title: '${_accountLabel(account)}：${'启用任务'.tr}',
+      taskNamesFuture: _enableDialogTaskNames(),
+      isTaskEnabled: (taskName) =>
+          enabledTaskNames.contains(_fixedTaskKey(taskName)),
     );
-    searchController.dispose();
-    if (selectedTasks == null || selectedTasks.isEmpty) return;
-    for (final taskName in selectedTasks) {
+    if (selected == null || selected.isEmpty) return;
+    for (final taskName in selected) {
       final ok = await ApiClient().addMultiAccountTaskOrchestrationSingleTask(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
@@ -2830,7 +2493,7 @@ class _MultiAccountTaskOrchestrationPanelState
       );
       if (!ok) return;
     }
-    _reload();
+    if (mounted) _reload();
   }
 
   Future<void> _deleteTask(int accountIndex, String taskName) async {
@@ -2845,7 +2508,7 @@ class _MultiAccountTaskOrchestrationPanelState
     }
   }
 
-  Future<void> _showPublicSettings() async {
+  Future<void> _openPublicSettings() async {
     final data = await ApiClient().getMultiAccountTaskOrchestrationPublicArgs(
       scriptName: widget.scriptName,
     );
@@ -2867,10 +2530,18 @@ class _MultiAccountTaskOrchestrationPanelState
       },
     );
     if (!mounted) return;
-    await _showArgsDialog(args, '多账号任务编排公共配置'.tr);
+    setState(() {
+      _settingsPage = _OrchestrationSettingsPage.public;
+      _settingsAccountIndex = null;
+      _settingsTaskName = '';
+      _settingsTaskDisplayName = '';
+      _settingsBatchId = '';
+      _settingsBatchDisplayName = '';
+      _returnToBatchPage = null;
+    });
   }
 
-  Future<void> _showTaskSettings(
+  Future<void> _openTaskSettings(
     int accountIndex,
     String taskName,
     String taskDisplayName,
@@ -2904,72 +2575,172 @@ class _MultiAccountTaskOrchestrationPanelState
       },
     );
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text('$taskDisplayName：${'账号私有配置'.tr}'),
-                trailing: Wrap(
-                  children: [
-                    IconButton(
-                      tooltip: '恢复默认配置'.tr,
-                      onPressed: () async {
-                        final ok = await ApiClient()
-                            .resetMultiAccountTaskOrchestrationTaskPrivateConfig(
-                              scriptName: widget.scriptName,
-                              accountIndex: accountIndex,
-                              taskName: taskName,
-                            );
-                        if (ok && dialogContext.mounted) {
-                          Navigator.of(dialogContext).pop();
-                        }
-                      },
-                      icon: const Icon(Icons.restart_alt_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '复制顺序任务组到其他账号'.tr,
-                      onPressed: () => _showCopyTaskConfigDialog(
-                        accountIndex,
-                        taskName,
-                        taskDisplayName,
-                      ),
-                      icon: const Icon(Icons.content_copy_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '关闭'.tr,
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: widget.scriptName,
-                  taskName: taskName,
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await args.discardDraftChanges();
-    if (mounted) {
-      setState(() => _loadingTasks.remove(taskName));
+    setState(() {
+      _settingsPage = _OrchestrationSettingsPage.accountTask;
+      _settingsAccountIndex = accountIndex;
+      _settingsTaskName = taskName;
+      _settingsTaskDisplayName = taskDisplayName;
+      _settingsBatchId = '';
+      _settingsBatchDisplayName = '';
+      _returnToBatchPage = null;
+    });
+  }
+
+  Future<void> _closeSettingsPage() async {
+    final returnToBatchPage = _returnToBatchPage;
+    final accountIndex = _settingsAccountIndex;
+    final batchId = _settingsBatchId;
+    final batchDisplayName = _settingsBatchDisplayName;
+    await Get.find<ArgsController>().discardDraftChanges();
+    if (!mounted) return;
+    setState(() {
+      _loadingTasks.remove(_settingsTaskName);
+      _settingsPage = _OrchestrationSettingsPage.none;
+      _settingsAccountIndex = null;
+      _settingsTaskName = '';
+      _settingsTaskDisplayName = '';
+      _settingsBatchId = '';
+      _settingsBatchDisplayName = '';
+      _returnToBatchPage = null;
+    });
+    if (returnToBatchPage == _OrchestrationSettingsPage.batchTaskList &&
+        accountIndex != null &&
+        batchId.isNotEmpty) {
       _reload();
+      _openFixedTimeBatchTaskList(accountIndex, <String, dynamic>{
+        'batch_id': batchId,
+        'name': batchDisplayName,
+      });
+      return;
     }
+    _reload();
+  }
+
+  Widget _buildSettingsPage(BuildContext context) {
+    final page = _settingsPage;
+    final isAccountTask = page == _OrchestrationSettingsPage.accountTask;
+    final isBatchTask = page == _OrchestrationSettingsPage.batchTask;
+    final isBatchScheduler = page == _OrchestrationSettingsPage.batchScheduler;
+    final isBatchTaskList = page == _OrchestrationSettingsPage.batchTaskList;
+    final accountIndex = _settingsAccountIndex;
+    final accountLabel = _accountLabelByIndex(accountIndex);
+    final taskName = _settingsTaskName;
+    final batchLabel = _settingsBatchDisplayName.isNotEmpty
+        ? _settingsBatchDisplayName
+        : '顺序任务组'.tr;
+    final title = switch (page) {
+      _OrchestrationSettingsPage.public => '多账号任务编排：${'公共配置'.tr}',
+      _OrchestrationSettingsPage.accountTask =>
+        '$accountLabel：$_settingsTaskDisplayName：${'账号私有配置'.tr}',
+      _OrchestrationSettingsPage.batchScheduler =>
+        '$accountLabel：$batchLabel：${'调度器设置'.tr}',
+      _OrchestrationSettingsPage.batchTaskList =>
+        '$accountLabel：$batchLabel：${'任务列表'.tr}',
+      _OrchestrationSettingsPage.batchTask =>
+        '$accountLabel：$batchLabel：$_settingsTaskDisplayName：${'任务组私有配置'.tr}',
+      _OrchestrationSettingsPage.none => '',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              tooltip: '返回'.tr,
+              onPressed: _closeSettingsPage,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isAccountTask && accountIndex != null && taskName.isNotEmpty)
+              IconButton(
+                tooltip: '恢复默认配置'.tr,
+                onPressed: () async {
+                  final ok = await ApiClient()
+                      .resetMultiAccountTaskOrchestrationTaskPrivateConfig(
+                        scriptName: widget.scriptName,
+                        accountIndex: accountIndex,
+                        taskName: taskName,
+                      );
+                  if (ok && mounted) await _closeSettingsPage();
+                },
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
+            if (isBatchTask && accountIndex != null && taskName.isNotEmpty)
+              IconButton(
+                tooltip: '恢复默认配置'.tr,
+                onPressed: () async {
+                  final ok = await ApiClient()
+                      .resetMultiAccountTaskOrchestrationFixedTimeBatchTaskPrivateConfigToDefault(
+                        scriptName: widget.scriptName,
+                        accountIndex: accountIndex,
+                        batchId: _settingsBatchId,
+                        taskName: taskName,
+                      );
+                  if (ok && mounted) await _closeSettingsPage();
+                },
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
+            if (isAccountTask && accountIndex != null && taskName.isNotEmpty)
+              IconButton(
+                tooltip: '复制到其他账号'.tr,
+                onPressed: () => _showCopyTaskConfigDialog(
+                  accountIndex,
+                  taskName,
+                  _settingsTaskDisplayName,
+                ),
+                icon: const Icon(Icons.content_copy_rounded),
+              ),
+          ],
+        ),
+        if (isBatchScheduler)
+          const Padding(
+            padding: EdgeInsets.only(left: 48, bottom: 8),
+            child: Text('直接使用 OAS 原生 Scheduler：下次运行、优先级、间隔、星期和随机延迟。'),
+          )
+        else
+          const SizedBox(height: 8),
+        Expanded(
+          child: isBatchTaskList && accountIndex != null
+              ? LayoutBuilder(
+                  builder: (context, constraints) =>
+                      _buildEmbeddedBatchTaskList(
+                        context,
+                        accountIndex,
+                        _settingsBatchId,
+                        batchLabel,
+                        listHeight: (constraints.maxHeight - 128).clamp(
+                          280.0,
+                          double.infinity,
+                        ),
+                      ),
+                )
+              : Args(
+                  scriptName: widget.scriptName,
+                  taskName: isAccountTask || isBatchTask
+                      ? taskName
+                      : 'MultiAccountTaskOrchestration',
+                  stagingMode: true,
+                  onCancel: _closeSettingsPage,
+                ),
+        ),
+      ],
+    );
+  }
+
+  String _accountLabelByIndex(int? accountIndex) {
+    if (accountIndex == null) return '';
+    for (final account in _maps(_liveState.value?['accounts'])) {
+      if (account['index'] == accountIndex) return _accountLabel(account);
+    }
+    return '${'账号'.tr}$accountIndex';
   }
 
   Future<void> _showCopyTaskConfigDialog(
@@ -3053,43 +2824,6 @@ class _MultiAccountTaskOrchestrationPanelState
       Get.snackbar(I18n.success.tr, '已复制到${targetIndexes.length}个账号'.tr);
       _reload();
     }
-  }
-
-  Future<void> _showArgsDialog(ArgsController args, String title) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(title),
-                trailing: IconButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: widget.scriptName,
-                  taskName: 'MultiAccountTaskOrchestration',
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await args.discardDraftChanges();
-    _reload();
   }
 
   Future<String?> _askText(String title, String label) async {

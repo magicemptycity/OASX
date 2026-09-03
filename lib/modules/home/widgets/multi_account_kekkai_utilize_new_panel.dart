@@ -12,6 +12,8 @@ import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
+enum _KekkaiUtilizeSettingsPage { none, account, public }
+
 /// 新版多账号蹭卡：运行账号使用公共账号库，蹭卡配置与禁卡时段均由账号独立保存。
 class MultiAccountKekkaiUtilizeNewPanel extends StatefulWidget {
   const MultiAccountKekkaiUtilizeNewPanel({
@@ -37,6 +39,9 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   Worker? _overviewWorker;
   Worker? _nativeScheduleWorker;
   Map<String, dynamic>? _activeOverviewAccount;
+  _KekkaiUtilizeSettingsPage _settingsPage = _KekkaiUtilizeSettingsPage.none;
+  int? _settingsAccountIndex;
+  String _settingsAccountLabel = '';
   bool _showDisabledAccounts = false;
   String get _scriptName => widget.scriptModel.name;
   static const _taskName = 'MultiAccountKekkaiUtilizeNew';
@@ -61,6 +66,9 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.scriptModel.name != widget.scriptModel.name) {
       _activeOverviewAccount = null;
+      _settingsPage = _KekkaiUtilizeSettingsPage.none;
+      _settingsAccountIndex = null;
+      _settingsAccountLabel = '';
       _bindNativeScheduleRefresh();
       _reload();
     }
@@ -68,6 +76,9 @@ class _MultiAccountKekkaiUtilizeNewPanelState
 
   @override
   Widget build(BuildContext context) {
+    if (_settingsPage != _KekkaiUtilizeSettingsPage.none) {
+      return _buildSettingsPage(context);
+    }
     final canQuickSchedule =
         widget.controller.isTaskEnabled(widget.scriptModel, _taskName) &&
         widget.controller.canQuickScheduleTask(widget.scriptModel, _taskName);
@@ -122,6 +133,9 @@ class _MultiAccountKekkaiUtilizeNewPanelState
                 return _buildEmpty(context);
               }
               return SingleChildScrollView(
+                key: PageStorageKey<String>(
+                  'multi-account-kekkai-utilize-new-account-list::$_scriptName',
+                ),
                 child: Column(
                   children: [
                     _buildHeader(context, allAccounts),
@@ -169,7 +183,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
                 label: '公共账号库'.tr,
               ),
               buildAccountManagementButton(
-                onPressed: _showTaskSettings,
+                onPressed: _openPublicSettings,
                 icon: Icons.settings_rounded,
                 label: '公共配置'.tr,
               ),
@@ -286,7 +300,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
       onSetNextRun: (_, value) => _setAccountNextRun(index, value),
       onQuickRun: (_) => _quickScheduleAccount(index, runNow: true),
       onQuickWait: (_) => _quickScheduleAccount(index, runNow: false),
-      onEditTask: (_) => _showAccountTaskSettings(index, accountLabel),
+      onEditTask: (_) => _openAccountTaskSettings(index, accountLabel),
       onDisableTask: (_) =>
           ApiClient().setMultiAccountKekkaiUtilizeNewAccountEnable(
             scriptName: _scriptName,
@@ -575,7 +589,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     if (ok) _reload();
   }
 
-  Future<void> _showAccountTaskSettings(int index, String label) async {
+  Future<void> _openAccountTaskSettings(int index, String label) async {
     final results = await Future.wait([
       ApiClient().getMultiAccountKekkaiUtilizeNewSchedulerArgs(
         scriptName: _scriptName,
@@ -613,67 +627,14 @@ class _MultiAccountKekkaiUtilizeNewPanelState
       },
     );
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text('$label：${'蹭卡任务设置'.tr}'),
-                trailing: Wrap(
-                  children: [
-                    IconButton(
-                      tooltip: '恢复默认私有蹭卡配置'.tr,
-                      onPressed: () async {
-                        if (await ApiClient()
-                                .resetMultiAccountKekkaiUtilizeNewUtilizeArgs(
-                                  scriptName: _scriptName,
-                                  accountIndex: index,
-                                ) &&
-                            dialogContext.mounted) {
-                          Navigator.of(dialogContext).pop();
-                        }
-                      },
-                      icon: const Icon(Icons.restart_alt_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '复制私有蹭卡配置'.tr,
-                      onPressed: () => _showCopyDialog(index, label, false),
-                      icon: const Icon(Icons.content_copy_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '关闭'.tr,
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: _scriptName,
-                  taskName: _taskName,
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await args.discardDraftChanges();
-    _reload();
+    setState(() {
+      _settingsPage = _KekkaiUtilizeSettingsPage.account;
+      _settingsAccountIndex = index;
+      _settingsAccountLabel = label;
+    });
   }
 
-  Future<void> _showTaskSettings() async {
+  Future<void> _openPublicSettings() async {
     final data = await ApiClient().getMultiAccountKekkaiUtilizeNewPublicArgs(
       scriptName: _scriptName,
     );
@@ -694,7 +655,82 @@ class _MultiAccountKekkaiUtilizeNewPanelState
           ),
     );
     if (!mounted) return;
-    await _showArgsDialog(args, '多账号多任务蹭卡新任务设置'.tr);
+    setState(() {
+      _settingsPage = _KekkaiUtilizeSettingsPage.public;
+      _settingsAccountIndex = null;
+      _settingsAccountLabel = '';
+    });
+  }
+
+  Future<void> _closeSettingsPage() async {
+    await Get.find<ArgsController>().discardDraftChanges();
+    if (!mounted) return;
+    setState(() {
+      _settingsPage = _KekkaiUtilizeSettingsPage.none;
+      _settingsAccountIndex = null;
+      _settingsAccountLabel = '';
+    });
+    _reload();
+  }
+
+  Widget _buildSettingsPage(BuildContext context) {
+    final isAccountPage = _settingsPage == _KekkaiUtilizeSettingsPage.account;
+    final accountIndex = _settingsAccountIndex;
+    final title = isAccountPage
+        ? '$_settingsAccountLabel：${'蹭卡任务设置'.tr}'
+        : '多账号多任务蹭卡新：${'公共配置'.tr}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              tooltip: '返回'.tr,
+              onPressed: _closeSettingsPage,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            if (isAccountPage && accountIndex != null)
+              IconButton(
+                tooltip: '恢复默认私有蹭卡配置'.tr,
+                onPressed: () async {
+                  final ok = await ApiClient()
+                      .resetMultiAccountKekkaiUtilizeNewUtilizeArgs(
+                        scriptName: _scriptName,
+                        accountIndex: accountIndex,
+                      );
+                  if (ok && mounted) {
+                    await _closeSettingsPage();
+                  }
+                },
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
+            if (isAccountPage && accountIndex != null)
+              IconButton(
+                tooltip: '复制私有蹭卡配置'.tr,
+                onPressed: () =>
+                    _showCopyDialog(accountIndex, _settingsAccountLabel, false),
+                icon: const Icon(Icons.content_copy_rounded),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Args(
+            scriptName: _scriptName,
+            taskName: _taskName,
+            stagingMode: true,
+            onCancel: _closeSettingsPage,
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _showForbidSettings(int index, String label) async {
@@ -937,68 +973,6 @@ class _MultiAccountKekkaiUtilizeNewPanelState
       Get.snackbar(I18n.success.tr, '已复制到${targets.length}个账号'.tr);
       _reload();
     }
-  }
-
-  Future<void> _showArgsDialog(
-    ArgsController args,
-    String title, {
-    Future<bool> Function()? reset,
-    Future<void> Function()? copy,
-  }) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(title),
-                trailing: Wrap(
-                  children: [
-                    if (reset != null)
-                      IconButton(
-                        tooltip: '恢复默认配置'.tr,
-                        onPressed: () async {
-                          if (await reset() && dialogContext.mounted) {
-                            Navigator.of(dialogContext).pop();
-                          }
-                        },
-                        icon: const Icon(Icons.restart_alt_rounded),
-                      ),
-                    if (copy != null)
-                      IconButton(
-                        tooltip: '复制到其他账号'.tr,
-                        onPressed: copy,
-                        icon: const Icon(Icons.content_copy_rounded),
-                      ),
-                    IconButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: _scriptName,
-                  taskName: _taskName,
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await args.discardDraftChanges();
-    _reload();
   }
 
   TimeOfDay _parseTime(String value) {
