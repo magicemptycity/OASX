@@ -56,5 +56,4 @@ final Map<String, String> _cn_menu = {
   I18n.demonRetreat: '首领退治',
   I18n.multiAccountTaskOrchestration: '多账号任务编排',
   I18n.dyeTrials: '灵染试炼',
-  'Chess': '百鬼棋局（测试版）',
 };

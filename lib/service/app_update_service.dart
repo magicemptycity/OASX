@@ -39,8 +39,8 @@ class AppUpdateService extends GetxService {
 
   UpdateDownloadSession? _activeDownloadSession;
 
-  /// Checks at most once per day unless the user requests a manual check.
-  static const Duration _updateCheckInterval = Duration(days: 1);
+  /// Suppresses automatic remote checks for one week.
+  static const Duration _updateCheckInterval = Duration(days: 7);
 
   /// Checks for a new OASX release and opens the update dialog when found.
   Future<void> checkForUpdates({
@@ -111,13 +111,9 @@ class AppUpdateService extends GetxService {
       if (_isDownloadCancelled(error)) {
         return;
       }
-      final message = switch (error) {
-        WindowsUpdateHandoffException(:final message) =>
-          I18n.updateInstallFailed.trParams({'error': message}),
-        _ when error.toString().contains('permission_required') =>
-          I18n.updateAllowUnknownApps.tr,
-        _ => I18n.updateDownloadFailed.tr,
-      };
+      final message = error.toString().contains('permission_required')
+          ? I18n.updateAllowUnknownApps.tr
+          : I18n.updateDownloadFailed.tr;
       Get.snackbar(I18n.tip.tr, message);
     } finally {
       _activeDownloadSession = null;
@@ -241,40 +237,19 @@ class AppUpdateService extends GetxService {
   /// Fetches the latest release through proxy when configured, otherwise direct.
   Future<ApiResult<GithubReleaseModel>> _fetchLatestReleaseResult() async {
     final proxyUrl = _readProxyUrl();
-    Object? primaryError;
+    if (proxyUrl.isEmpty) {
+      return ApiClient().getGithubReleaseResult();
+    }
     try {
       final json = await UpdatePackageIo.fetchJsonMap(
         updateUrlGithub,
-        proxyUrl: proxyUrl.isEmpty ? null : proxyUrl,
+        proxyUrl: proxyUrl,
       );
       final release = GithubReleaseModel.fromJson(json);
-      if (!release.isValid) {
-        throw const FormatException('invalid_release_payload');
-      }
       return ApiResult<GithubReleaseModel>.success(release);
     } catch (error) {
-      primaryError = error;
-    }
-    try {
-      final tag = await UpdatePackageIo.fetchLatestReleaseTag(
-        updateFallbackUrlGithub,
-        proxyUrl: proxyUrl.isEmpty ? null : proxyUrl,
-      );
-      final release = GithubReleaseModel.fromTagFallback(
-        tag: tag,
-        releaseBaseUrl: oasxRelease,
-      );
-      return ApiResult<GithubReleaseModel>.success(release);
-    } catch (fallbackError) {
-      final primaryMessage = primaryError is HttpException
-          ? primaryError.message
-          : primaryError.toString();
-      final fallbackMessage = fallbackError is HttpException
-          ? fallbackError.message
-          : fallbackError.toString();
-      return ApiResult<GithubReleaseModel>.failure(
-        '$primaryMessage; fallback_failed: $fallbackMessage',
-      );
+      final message = error is HttpException ? error.message : error.toString();
+      return ApiResult<GithubReleaseModel>.failure(message);
     }
   }
 

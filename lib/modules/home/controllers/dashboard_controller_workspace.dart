@@ -111,14 +111,6 @@ extension HomeDashboardWorkspaceX on HomeDashboardController {
     return activeWorkbenchTab.value == HomeWorkbenchTab.stats;
   }
 
-  bool get isBehaviorAnalysisVisibleInCurrentLayout {
-    if (workbenchLayoutMode.value == HomeWorkbenchLayoutMode.threePane) {
-      return displayedWorkbenchSidebarTabFor(workbenchLayoutMode.value) ==
-          HomeWorkbenchTab.behaviorAnalysis;
-    }
-    return activeWorkbenchTab.value == HomeWorkbenchTab.behaviorAnalysis;
-  }
-
   List<ScriptModel> get orderedScripts {
     final models = <ScriptModel>[];
     for (final name in _scriptService.scriptOrderList) {

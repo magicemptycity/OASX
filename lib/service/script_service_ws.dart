@@ -10,23 +10,9 @@ extension ScriptServiceWsX on ScriptService {
       name: name,
       listener: (mg) => wsListener(mg, name),
     );
-    await _statusSubscriptions.remove(name)?.cancel();
-    var sawDisconnect = false;
-    _statusSubscriptions[name] = client.status.listen((wsStatus) {
-      scriptModelMap[name]?.update(state: wsStatus.scriptState);
-      if (wsStatus == WsStatus.connected) {
-        if (sawDisconnect) {
-          sawDisconnect = false;
-          scheduleBackendRefreshAfterReconnect();
-        }
-        return;
-      }
-      if (wsStatus == WsStatus.error ||
-          wsStatus == WsStatus.closed ||
-          wsStatus == WsStatus.reconnecting) {
-        sawDisconnect = true;
-      }
-    });
+    client.status.listen(
+      (wsStatus) => scriptModelMap[name]?.update(state: wsStatus.scriptState),
+    );
   }
 
   Future<void> startScript(String name) async {

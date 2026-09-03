@@ -30,31 +30,14 @@ class AppVersionUtils {
       return 'v0.0.1';
     }
     final packageInfo = await PackageInfo.fromPlatform();
-    return formatInstalledVersion(
-      version: packageInfo.version,
-      buildNumber: packageInfo.buildNumber,
-    );
-  }
-
-  /// Combines the package version and build number used by testoyj releases.
-  static String formatInstalledVersion({
-    required String version,
-    required String buildNumber,
-  }) {
-    final normalizedVersion = version.trim().split('-').first;
-    final normalizedBuild = buildNumber.trim();
-    if (normalizedBuild.isEmpty || normalizedBuild == '0') {
-      return 'v$normalizedVersion';
-    }
-    return 'v$normalizedVersion.$normalizedBuild';
+    return 'v${packageInfo.version}'.split('-')[0];
   }
 
   /// Normalizes a semantic version string into integer parts.
   static List<int> _normalizeVersion(String version) {
-    final match = RegExp(r'v?(\d+(?:\.\d+)*)').firstMatch(version.trim());
-    final normalized = match?.group(1) ?? '';
+    final normalized = version.trim().replaceFirst(RegExp('^v'), '');
     return normalized
-        .split('.')
+        .split(RegExp(r'[.\-]'))
         .map((part) => int.tryParse(part) ?? 0)
         .toList();
   }
