@@ -11,6 +11,7 @@ import 'package:oasx/api/config_transfer_models.dart';
 import 'package:oasx/config/constants.dart';
 import 'package:oasx/modules/common/models/storage_key.dart';
 import 'package:oasx/modules/home/models/script_statistics_models.dart';
+import 'package:oasx/modules/home/models/weekly_schedule_models.dart';
 import 'package:oasx/modules/log/log_browser_models.dart';
 import 'package:oasx/translation/i18n.dart';
 import 'package:oasx/translation/i18n_content.dart';
@@ -219,12 +220,25 @@ class ApiClient {
   }
 
   Future<Map<String, Map<String, String>>> getAdditionalTranslate() async {
-    final res = await request(() => get('/home/additional_translate'));
+    final res = await request(
+      () => get(
+        '/home/additional_translate',
+        options: _backendNoCacheOptions(),
+      ),
+    );
     final result = <String, Map<String, String>>{};
     if (res.isSuccess) {
       result['zh_CN'] = (res.data['zh-CN'] as Map).cast<String, String>();
       result['en_US'] = (res.data['en-US'] as Map).cast<String, String>();
     }
     return result;
+  }
+
+  Options _backendNoCacheOptions() {
+    final cacheOptions = _cacheOptions.copyWith(policy: CachePolicy.noCache);
+    return Options(
+      extra: cacheOptions.toExtra(),
+      headers: const {'Cache-Control': 'no-cache', 'Pragma': 'no-cache'},
+    );
   }
 }

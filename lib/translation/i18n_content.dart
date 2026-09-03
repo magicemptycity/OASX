@@ -172,6 +172,122 @@ class I18n {
   static const String homeStatusTab = 'home_status_tab',
       homeTasksTab = 'home_tasks_tab',
       homeParamsTab = 'home_params_tab';
+  static const String weeklyScheduleTab = 'weekly_schedule_tab',
+      weeklyScheduleLoadFailed = 'weekly_schedule_load_failed',
+      weeklyScheduleSaveFailed = 'weekly_schedule_save_failed';
+  static const String weeklyScheduleApplyFailed =
+          'weekly_schedule_apply_failed',
+      weeklyScheduleSaved = 'weekly_schedule_saved',
+      weeklyScheduleApplied = 'weekly_schedule_applied';
+  static const String weeklyScheduleAdd = 'weekly_schedule_add',
+      weeklyScheduleEdit = 'weekly_schedule_edit',
+      weeklyScheduleTask = 'weekly_schedule_task';
+  static const String weeklyScheduleBulkAdd = 'weekly_schedule_bulk_add',
+      weeklyScheduleBulkAddTitle = 'weekly_schedule_bulk_add_title',
+      weeklyScheduleBulkAdded = 'weekly_schedule_bulk_added';
+  static const String weeklyScheduleTargetDays =
+          'weekly_schedule_target_days',
+      weeklyScheduleRandomOffset = 'weekly_schedule_random_offset',
+      weeklyScheduleMinutes = 'weekly_schedule_minutes';
+  static const String weeklyScheduleReplaceSameTask =
+      'weekly_schedule_replace_same_task';
+  static const String weeklyScheduleKeyboardInput =
+          'weekly_schedule_keyboard_input',
+      weeklyScheduleClockInput = 'weekly_schedule_clock_input',
+      weeklyScheduleInvalidTime = 'weekly_schedule_invalid_time';
+  static const String weeklyScheduleWeekday = 'weekly_schedule_weekday',
+      weeklyScheduleTime = 'weekly_schedule_time',
+      weeklyScheduleAll = 'weekly_schedule_all';
+  static const String weeklyScheduleEmpty = 'weekly_schedule_empty',
+      weeklyScheduleEnabled = 'weekly_schedule_enabled',
+      weeklyScheduleDisabled = 'weekly_schedule_disabled';
+  static const String weeklyScheduleResetTimes =
+          'weekly_schedule_reset_times',
+      weeklySchedulePlanned = 'weekly_schedule_planned',
+      weeklyScheduleUnplanned = 'weekly_schedule_unplanned';
+  static const String weeklyScheduleCopyDay = 'weekly_schedule_copy_day',
+      weeklyScheduleCopyDayTitle = 'weekly_schedule_copy_day_title',
+      weeklyScheduleSourceDay = 'weekly_schedule_source_day',
+      weeklyScheduleTargetDay = 'weekly_schedule_target_day';
+  static const String weeklyScheduleReplaceTarget =
+          'weekly_schedule_replace_target',
+      weeklyScheduleNoSourceEntries = 'weekly_schedule_no_source_entries',
+      weeklyScheduleDayCopied = 'weekly_schedule_day_copied';
+  static const String weeklyScheduleImportCurrent =
+          'weekly_schedule_import_current',
+      weeklyScheduleImportCurrentTitle = 'weekly_schedule_import_current_title',
+      weeklyScheduleReplaceExisting = 'weekly_schedule_replace_existing';
+  static const String weeklyScheduleNoEnabledTasks =
+          'weekly_schedule_no_enabled_tasks',
+      weeklyScheduleImported = 'weekly_schedule_imported',
+      weeklyScheduleViewTasks = 'weekly_schedule_view_tasks';
+  static const String weeklyScheduleCatchUpMissed =
+          'weekly_schedule_catch_up_missed',
+      weeklyScheduleCurrentTime = 'weekly_schedule_current_time',
+      weeklyScheduleCurrentWeek = 'weekly_schedule_current_week';
+  static const String weeklyScheduleLastSynced =
+          'weekly_schedule_last_synced',
+      weeklyScheduleNotSynced = 'weekly_schedule_not_synced';
+  static const String weeklyScheduleTurtleMode =
+          'weekly_schedule_turtle_mode',
+      weeklyScheduleTurtleSelect = 'weekly_schedule_turtle_select',
+      weeklyScheduleTurtleSelectTitle = 'weekly_schedule_turtle_select_title';
+  static const String weeklyScheduleTurtleKeep =
+          'weekly_schedule_turtle_keep',
+      weeklyScheduleTurtleEmpty = 'weekly_schedule_turtle_empty';
+  static const String weeklyScheduleFreeCycle = 'weekly_schedule_free_cycle',
+      weeklyScheduleFreeCycleSelect = 'weekly_schedule_free_cycle_select',
+      weeklyScheduleFreeCycleSelectTitle =
+          'weekly_schedule_free_cycle_select_title';
+  static const String weeklyRefresh = 'weekly_refresh',
+      weeklyRefreshSettings = 'weekly_refresh_settings',
+      weeklyRefreshRange = 'weekly_refresh_range',
+      weeklyRefreshExcluded = 'weekly_refresh_excluded';
+  static const String weeklyRefreshBoundaries = 'weekly_refresh_boundaries',
+      weeklyRefreshPreview = 'weekly_refresh_preview',
+      weeklyRefreshRandomRange = 'weekly_refresh_random_range',
+      weeklyRefreshRandomRangeHelp = 'weekly_refresh_random_range_help';
+  static const String weeklyRefreshFreezeWindows =
+          'weekly_refresh_freeze_windows',
+      weeklyRefreshAddFreeze = 'weekly_refresh_add_freeze',
+      weeklyRefreshNoFreeze = 'weekly_refresh_no_freeze',
+      weeklyRefreshExcludedTaskHelp = 'weekly_refresh_excluded_task_help';
+  static const String weeklyRefreshClearBoundary =
+           'weekly_refresh_clear_boundary',
+      weeklyRefreshClearAllBoundaries = 'weekly_refresh_clear_all_boundaries',
+      weeklyRefreshBoundaryUnified = 'weekly_refresh_boundary_unified',
+      weeklyRefreshBoundaryIndividual = 'weekly_refresh_boundary_individual',
+      weeklyRefreshBoundaryMixed = 'weekly_refresh_boundary_mixed',
+      weeklyRefreshGeneratePreview = 'weekly_refresh_generate_preview',
+      weeklyRefreshPreviewEmpty = 'weekly_refresh_preview_empty',
+      weeklyRefreshPreviewFailed = 'weekly_refresh_preview_failed';
+  static const String weeklyRefreshBackendUpdateRequired =
+      'weekly_refresh_backend_update_required';
+  static const String weeklyRefreshSaveCurrent = 'weekly_refresh_save_current';
+  static const String weeklyRefreshSettingsSaved = 'weekly_refresh_settings_saved';
+  static const String weeklyRefreshBoundaryStart =
+          'weekly_refresh_boundary_start',
+      weeklyRefreshBoundaryEnd = 'weekly_refresh_boundary_end',
+      weeklyRefreshNow = 'weekly_refresh_now',
+      weeklyRefreshNowConfirm = 'weekly_refresh_now_confirm';
+  static const String weeklyRefreshFailed = 'weekly_refresh_failed',
+      weeklyRefreshApplied = 'weekly_refresh_applied',
+      weeklyRefreshNoCandidate = 'weekly_refresh_no_candidate',
+      weeklyRefreshIssues = 'weekly_refresh_issues';
+  static const String weekdayMonday = 'weekday_monday',
+      weekdayTuesday = 'weekday_tuesday',
+      weekdayWednesday = 'weekday_wednesday',
+      weekdayThursday = 'weekday_thursday';
+  static const String weekdayFriday = 'weekday_friday',
+      weekdaySaturday = 'weekday_saturday',
+      weekdaySunday = 'weekday_sunday';
+  static const String weekdayMonShort = 'weekday_mon_short',
+      weekdayTueShort = 'weekday_tue_short',
+      weekdayWedShort = 'weekday_wed_short',
+      weekdayThuShort = 'weekday_thu_short';
+  static const String weekdayFriShort = 'weekday_fri_short',
+      weekdaySatShort = 'weekday_sat_short',
+      weekdaySunShort = 'weekday_sun_short';
   static const String homeStatsTab = 'home_stats_tab',
       homeStatsGeneratedAt = 'home_stats_generated_at',
       homeStatsRetentionDays = 'home_stats_retention_days';
@@ -235,6 +351,7 @@ class I18n {
       homeQuickWaitAll = 'home_quick_wait_all',
       homeBulkQuickScheduleTimedOut = 'home_bulk_quick_schedule_timed_out',
       homeOpenTaskParams = 'home_open_task_params',
+      chessTestNotice = 'chess_test_notice',
       homeTaskConfigureAndEnable = 'home_task_configure_and_enable';
   static const String homeTaskSelectPrompt = 'home_task_select_prompt',
       homeRealtimeLog = 'home_realtime_log',
@@ -254,6 +371,50 @@ class I18n {
       homeLogImageSaveSuccess = 'home_log_image_save_success',
       homeLogImageSaveFailed = 'home_log_image_save_failed',
       homeLogScrollToBottom = 'home_log_scroll_to_bottom';
+  static const String behaviorAnalysisTab = 'behavior_analysis_tab',
+      behaviorAnalysisPrivacyNotice = 'behavior_analysis_privacy_notice',
+      behaviorAnalysisRefresh = 'behavior_analysis_refresh',
+      behaviorAnalysisTaskFilter = 'behavior_analysis_task_filter',
+      behaviorAnalysisAllTasks = 'behavior_analysis_all_tasks';
+  static const String behaviorAnalysisClickCount = 'behavior_analysis_click_count',
+      behaviorAnalysisWaitCount = 'behavior_analysis_wait_count',
+      behaviorAnalysisTaskCount = 'behavior_analysis_task_count';
+  static const String behaviorAnalysisClickPath = 'behavior_analysis_click_path',
+      behaviorAnalysisShowPath = 'behavior_analysis_show_path',
+      behaviorAnalysisRandomWaits = 'behavior_analysis_random_waits',
+      behaviorAnalysisTaskDurations = 'behavior_analysis_task_durations',
+      behaviorAnalysisTimeline = 'behavior_analysis_timeline';
+  static const String behaviorAnalysisNoClicks = 'behavior_analysis_no_clicks',
+      behaviorAnalysisNoWaits = 'behavior_analysis_no_waits',
+      behaviorAnalysisNoDurations = 'behavior_analysis_no_durations',
+      behaviorAnalysisNoLogs = 'behavior_analysis_no_logs',
+      behaviorAnalysisNoTimeline = 'behavior_analysis_no_timeline';
+  static const String behaviorAnalysisSamples = 'behavior_analysis_samples',
+      behaviorAnalysisLoading = 'behavior_analysis_loading',
+      behaviorAnalysisLocalOnly = 'behavior_analysis_local_only',
+      behaviorAnalysisRootMissing = 'behavior_analysis_root_missing',
+      behaviorAnalysisReadFailed = 'behavior_analysis_read_failed';
+  static const String behaviorAnalysisTime = 'behavior_analysis_time',
+      behaviorAnalysisTask = 'behavior_analysis_task',
+      behaviorAnalysisTarget = 'behavior_analysis_target',
+      behaviorAnalysisCoordinates = 'behavior_analysis_coordinates',
+      behaviorAnalysisDuration = 'behavior_analysis_duration',
+      behaviorAnalysisCategory = 'behavior_analysis_category',
+      behaviorAnalysisRange = 'behavior_analysis_range',
+      behaviorAnalysisCount = 'behavior_analysis_count',
+      behaviorAnalysisProportion = 'behavior_analysis_proportion',
+      behaviorAnalysisNote = 'behavior_analysis_note';
+  static const String behaviorAnalysisStartTime = 'behavior_analysis_start_time',
+      behaviorAnalysisEndTime = 'behavior_analysis_end_time',
+      behaviorAnalysisTaskRun = 'behavior_analysis_task_run',
+      behaviorAnalysisScriptStart = 'behavior_analysis_script_start',
+      behaviorAnalysisPlannedRestart = 'behavior_analysis_planned_restart',
+      behaviorAnalysisAnomalyRestart = 'behavior_analysis_anomaly_restart',
+      behaviorAnalysisAtxRestart = 'behavior_analysis_atx_restart',
+      behaviorAnalysisInferredEnd = 'behavior_analysis_inferred_end';
+  static const String behaviorAnalysisAnomalyLane = 'behavior_analysis_anomaly_lane',
+      behaviorAnalysisTaskLane = 'behavior_analysis_task_lane',
+      behaviorAnalysisLifecycleLane = 'behavior_analysis_lifecycle_lane';
   static const String taskManage = 'task_manage',
       taskManageTitle = 'task_manage_title',
       taskSearchHint = 'task_search_hint';
@@ -419,6 +580,7 @@ class I18n {
       updatePreparing = 'update_preparing',
       updateCheckFailed = 'update_check_failed',
       updateDownloadFailed = 'update_download_failed',
+      updateInstallFailed = 'update_install_failed',
       updateDownloadProgress = 'update_download_progress',
       updateDownloadProgressUnknown = 'update_download_progress_unknown',
       updateInvalidPackage = 'update_invalid_package',

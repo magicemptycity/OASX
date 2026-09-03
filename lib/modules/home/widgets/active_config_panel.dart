@@ -8,6 +8,8 @@ import 'package:oasx/modules/home/widgets/log_center_panel.dart';
 import 'package:oasx/modules/home/widgets/statistics_panel.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_panel.dart';
 import 'package:oasx/modules/home/widgets/task_status_panel.dart';
+import 'package:oasx/modules/home/widgets/weekly_schedule_panel.dart';
+import 'package:oasx/modules/home/widgets/behavior_analysis_panel.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 class ActiveConfigPanel extends StatelessWidget {
@@ -56,6 +58,7 @@ class ActiveConfigPanel extends StatelessWidget {
         child: Obx(() {
           final script = controller.activeScriptModel;
           final currentTab = controller.displayedWorkbenchTabFor(layoutMode);
+          final backendRevision = controller.backendDataRevision.value;
           final tabs = controller.workbenchTabsFor(layoutMode);
           if (script == null) {
             return Center(child: Text(I18n.homeNoScriptSelected.tr));
@@ -140,7 +143,13 @@ class ActiveConfigPanel extends StatelessWidget {
                     .toList(),
               ),
               const SizedBox(height: 12),
-              Expanded(child: _buildTabContent(script, currentTab)),
+              Expanded(
+                child: _buildTabContent(
+                  script,
+                  currentTab,
+                  backendRevision,
+                ),
+              ),
             ],
           );
         }),
@@ -148,7 +157,11 @@ class ActiveConfigPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildTabContent(ScriptModel script, HomeWorkbenchTab currentTab) {
+  Widget _buildTabContent(
+    ScriptModel script,
+    HomeWorkbenchTab currentTab,
+    int backendRevision,
+  ) {
     return switch (currentTab) {
       HomeWorkbenchTab.status => TaskStatusPanel(
         controller: controller,
@@ -162,6 +175,9 @@ class ActiveConfigPanel extends StatelessWidget {
             onOpenTask(taskName, HomeTaskParameterEntrySource.overview),
       ),
       HomeWorkbenchTab.tasks => TaskCatalogPanel(
+        key: ValueKey<String>(
+          'task-catalog-${script.name}-$backendRevision',
+        ),
         controller: controller,
         scriptModel: script,
         onOpenTask: (taskName) =>
@@ -169,8 +185,15 @@ class ActiveConfigPanel extends StatelessWidget {
         onQuickRun: onQuickRun,
         onQuickWait: onQuickWait,
       ),
+      HomeWorkbenchTab.weeklySchedule => WeeklySchedulePanel(
+        key: ValueKey<String>(
+          'weekly-schedule-${script.name}-$backendRevision',
+        ),
+        scriptName: script.name,
+      ),
       HomeWorkbenchTab.stats => const ScriptStatisticsPanel(),
       HomeWorkbenchTab.logs => LogCenterPanel(scriptName: script.name),
+      HomeWorkbenchTab.behaviorAnalysis => const BehaviorAnalysisPanel(),
     };
   }
 
@@ -178,8 +201,10 @@ class ActiveConfigPanel extends StatelessWidget {
     return switch (value) {
       HomeWorkbenchTab.status => I18n.overview.tr,
       HomeWorkbenchTab.tasks => I18n.homeTasksTab.tr,
+      HomeWorkbenchTab.weeklySchedule => I18n.weeklyScheduleTab.tr,
       HomeWorkbenchTab.stats => I18n.homeStatsTab.tr,
       HomeWorkbenchTab.logs => I18n.log.tr,
+      HomeWorkbenchTab.behaviorAnalysis => I18n.behaviorAnalysisTab.tr,
     };
   }
 }

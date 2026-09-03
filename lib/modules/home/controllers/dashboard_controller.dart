@@ -58,11 +58,20 @@ enum HomeScriptStateFilter { all, running, abnormal, stopped, offline }
 enum HomeWorkbenchPage { scripts, workspace }
 
 /// Defines the visible home workbench tab for the active script.
-enum HomeWorkbenchTab { status, tasks, stats, logs }
+enum HomeWorkbenchTab {
+  status,
+  tasks,
+  weeklySchedule,
+  stats,
+  logs,
+  behaviorAnalysis,
+}
 
 /// Returns whether the tab belongs to the right desktop sidebar.
 bool isHomeWorkbenchSidebarTab(HomeWorkbenchTab value) {
-  return value == HomeWorkbenchTab.stats || value == HomeWorkbenchTab.logs;
+  return value == HomeWorkbenchTab.stats ||
+      value == HomeWorkbenchTab.logs ||
+      value == HomeWorkbenchTab.behaviorAnalysis;
 }
 
 /// Records which workbench tab opened the task parameter editor.
@@ -80,13 +89,19 @@ enum HomeBulkQuickScheduleResult { completed, failed, skipped, timedOut }
 /// Returns the visible workbench tabs for the active layout mode.
 List<HomeWorkbenchTab> resolveHomeWorkbenchTabs(HomeWorkbenchLayoutMode mode) {
   if (mode == HomeWorkbenchLayoutMode.threePane) {
-    return const [HomeWorkbenchTab.status, HomeWorkbenchTab.tasks];
+    return const [
+      HomeWorkbenchTab.status,
+      HomeWorkbenchTab.tasks,
+      HomeWorkbenchTab.weeklySchedule,
+    ];
   }
   return const [
     HomeWorkbenchTab.status,
     HomeWorkbenchTab.tasks,
+    HomeWorkbenchTab.weeklySchedule,
     HomeWorkbenchTab.logs,
     HomeWorkbenchTab.stats,
+    HomeWorkbenchTab.behaviorAnalysis,
   ];
 }
 
@@ -97,7 +112,11 @@ List<HomeWorkbenchTab> resolveHomeWorkbenchSidebarTabs(
   if (mode != HomeWorkbenchLayoutMode.threePane) {
     return const [];
   }
-  return const [HomeWorkbenchTab.logs, HomeWorkbenchTab.stats];
+  return const [
+    HomeWorkbenchTab.logs,
+    HomeWorkbenchTab.stats,
+    HomeWorkbenchTab.behaviorAnalysis,
+  ];
 }
 
 class HomeDashboardController extends GetxController {
@@ -116,6 +135,7 @@ class HomeDashboardController extends GetxController {
   final isStartupConnectionFailed = false.obs;
   final isStartupAutoDeploying = false.obs;
   final startupLoadingMessage = ''.obs;
+  final backendDataRevision = 0.obs;
   final isLinkModeEnabled = false.obs;
   final linkedScriptList = <String>[].obs;
   final searchQuery = ''.obs;
@@ -150,6 +170,7 @@ class HomeDashboardController extends GetxController {
         syncWorkspaceState();
       },
     );
+    _scriptService.onBackendReconnected = refreshAfterBackendReconnect;
     super.onInit();
   }
 
