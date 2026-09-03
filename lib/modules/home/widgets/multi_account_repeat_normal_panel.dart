@@ -13,10 +13,13 @@ import 'package:oasx/modules/home/widgets/task_status_row.dart';
 import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
+import 'package:oasx/modules/home/widgets/multi_account_enable_tasks_dialog.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 /// 多账号多任务新普通的独立配置面板。
 enum _NewTaskFilter { all, enabled, disabled }
+
+enum _NormalSettingsPage { none, task, public }
 
 enum _NormalAccountProgressAction {
   rerun,
@@ -56,6 +59,11 @@ class _MultiAccountRepeatNewNormalPanelState
   String _taskSearchQuery = '';
   bool _showAllTasks = false;
   _NewTaskFilter _taskFilter = _NewTaskFilter.all;
+  _NormalSettingsPage _settingsPage = _NormalSettingsPage.none;
+  int? _settingsAccountIndex;
+  String _settingsTaskName = '';
+  String _settingsTaskDisplayName = '';
+  String _settingsAccountLabel = '';
 
   @override
   void initState() {
@@ -74,6 +82,11 @@ class _MultiAccountRepeatNewNormalPanelState
       return;
     }
     _selectedAccount = 1;
+    _settingsPage = _NormalSettingsPage.none;
+    _settingsAccountIndex = null;
+    _settingsTaskName = '';
+    _settingsTaskDisplayName = '';
+    _settingsAccountLabel = '';
     _bindNativeScheduleRefresh();
     _reload();
   }
@@ -87,6 +100,9 @@ class _MultiAccountRepeatNewNormalPanelState
 
   @override
   Widget build(BuildContext context) {
+    if (_settingsPage != _NormalSettingsPage.none) {
+      return _buildSettingsPage(context);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -109,6 +125,9 @@ class _MultiAccountRepeatNewNormalPanelState
               }
               final account = accounts[_selectedAccount - 1];
               return SingleChildScrollView(
+                key: PageStorageKey<String>(
+                  'multi-account-repeat-normal-content-${widget.scriptName}',
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -248,7 +267,7 @@ class _MultiAccountRepeatNewNormalPanelState
                   label: '公共账号库'.tr,
                 ),
                 buildAccountManagementButton(
-                  onPressed: _showPublicSettings,
+                  onPressed: _openPublicSettings,
                   icon: Icons.settings_rounded,
                   label: '公共配置'.tr,
                 ),
@@ -325,6 +344,11 @@ class _MultiAccountRepeatNewNormalPanelState
                   onPressed: () =>
                       _showAccountProgressDialog(accountIndex, account),
                   icon: const Icon(Icons.fact_check_outlined),
+                ),
+                IconButton(
+                  tooltip: '删除账号'.tr,
+                  onPressed: () => _deleteTaskAccount(accountIndex),
+                  icon: const Icon(Icons.person_remove_outlined),
                 ),
                 FilledButton.icon(
                   onPressed: () => _showEnableTasksDialog(accountIndex),
@@ -491,10 +515,18 @@ class _MultiAccountRepeatNewNormalPanelState
               _showNormalTaskStatusDialog(accountIndex, name, title, status),
         ),
       ],
+      // “删除”仅停用该账号任务，私有配置、状态和排序记录全部保留。
+      trailingActions: [
+        TaskStatusActionIcon(
+          icon: Icons.delete_outline_rounded,
+          tooltip: '停用任务'.tr,
+          onPressed: () => _setNormalTaskEnabled(accountIndex, name, false),
+        ),
+      ],
       onSetNextRun: (_, __) async {},
       onQuickRun: (_) async {},
       onQuickWait: (_) async {},
-      onEditTask: (_) => _showTaskSettings(accountIndex, name, title),
+      onEditTask: (_) => _openTaskSettings(accountIndex, name, title),
       onDisableTask: (_) => _setNormalTaskEnabled(accountIndex, name, false),
       onDismissed: (_) {},
       dragEnabled: false,
@@ -531,6 +563,16 @@ class _MultiAccountRepeatNewNormalPanelState
     _NewTaskFilter.disabled => '未启用'.tr,
   };
 
+  Future<List<String>> _enableDialogTaskNames() async {
+    final menu = await _menuFuture;
+    final seen = <String>{};
+    return [
+      for (final taskName in menu.values.expand((items) => items))
+        if (taskName.trim().isNotEmpty && seen.add(_normalizeTask(taskName)))
+          taskName.trim(),
+    ];
+  }
+
   Future<void> _showEnableTasksDialog(int accountIndex) async {
     final state = await _stateFuture;
     if (!mounted) return;
@@ -542,170 +584,23 @@ class _MultiAccountRepeatNewNormalPanelState
         .where((task) => task['enabled'] == true)
         .map((task) => _normalizeTask('${task['task_name'] ?? ''}'))
         .toSet();
-    final selectedTaskNames = <String>{};
-    final searchController = TextEditingController();
-    var searchQuery = '';
-    var filter = _NewTaskFilter.all;
-    try {
-      final selected = await showDialog<List<String>>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: Text('${_accountLabel(account)}：${'启用任务'.tr}'),
-            content: SizedBox(
-              width: 620,
-              height: 620,
-              child: FutureBuilder<Map<String, List<String>>>(
-                future: _menuFuture,
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final query = searchQuery.trim().toLowerCase();
-                  final taskNames = snapshot.data!.values
-                      .expand((items) => items)
-                      .where((taskName) {
-                        final key = _normalizeTask(taskName);
-                        final alreadyEnabled = enabledTaskNames.contains(key);
-                        if (filter == _NewTaskFilter.enabled &&
-                            !alreadyEnabled) {
-                          return false;
-                        }
-                        if (filter == _NewTaskFilter.disabled &&
-                            alreadyEnabled) {
-                          return false;
-                        }
-                        return query.isEmpty ||
-                            taskName.toLowerCase().contains(query) ||
-                            taskName.tr.toLowerCase().contains(query);
-                      })
-                      .toSet()
-                      .toList();
-                  return Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: searchController,
-                              autofocus: true,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                hintText: '搜索任务'.tr,
-                                border: const OutlineInputBorder(),
-                              ),
-                              onChanged: (value) =>
-                                  setDialogState(() => searchQuery = value),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          PopupMenuButton<_NewTaskFilter>(
-                            tooltip: _normalTaskFilterLabel(filter),
-                            initialValue: filter,
-                            onSelected: (value) =>
-                                setDialogState(() => filter = value),
-                            itemBuilder: (context) => _NewTaskFilter.values
-                                .map(
-                                  (value) => PopupMenuItem<_NewTaskFilter>(
-                                    value: value,
-                                    child: Text(_normalTaskFilterLabel(value)),
-                                  ),
-                                )
-                                .toList(),
-                            icon: Icon(
-                              Icons.filter_list_rounded,
-                              color: filter == _NewTaskFilter.all
-                                  ? null
-                                  : Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '已启用任务仅供查看；可多选未启用任务进行启用。已停用任务会保留私有配置和运行记录。'.tr,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: taskNames.isEmpty
-                            ? Center(child: Text('没有可启用的任务'.tr))
-                            : ListView.separated(
-                                itemCount: taskNames.length,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (context, index) {
-                                  final taskName = taskNames[index];
-                                  final alreadyEnabled = enabledTaskNames
-                                      .contains(_normalizeTask(taskName));
-                                  return TaskCatalogSplitRow(
-                                    scrollKey: ValueKey(
-                                      'normal-enable-$accountIndex-$taskName',
-                                    ),
-                                    taskLabel: Text(
-                                      taskName.tr,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    supportsEnable: true,
-                                    enabled:
-                                        alreadyEnabled ||
-                                        selectedTaskNames.contains(taskName),
-                                    loading: false,
-                                    onToggleEnabled: alreadyEnabled
-                                        ? null
-                                        : (enabled) => setDialogState(() {
-                                            if (enabled) {
-                                              selectedTaskNames.add(taskName);
-                                            } else {
-                                              selectedTaskNames.remove(
-                                                taskName,
-                                              );
-                                            }
-                                          }),
-                                    trailing: const SizedBox.shrink(),
-                                    trailingExtent: 0,
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text(I18n.cancel.tr),
-              ),
-              FilledButton.icon(
-                onPressed: selectedTaskNames.isEmpty
-                    ? null
-                    : () => Navigator.of(
-                        dialogContext,
-                      ).pop(selectedTaskNames.toList()),
-                icon: const Icon(Icons.playlist_add_rounded),
-                label: Text('启用（${selectedTaskNames.length}）'.tr),
-              ),
-            ],
-          ),
-        ),
+    final selected = await showMultiAccountEnableTasksDialog(
+      context: context,
+      title: '${_accountLabel(account)}：${'启用任务'.tr}',
+      taskNamesFuture: _enableDialogTaskNames(),
+      isTaskEnabled: (taskName) =>
+          enabledTaskNames.contains(_normalizeTask(taskName)),
+    );
+    if (selected == null || selected.isEmpty) return;
+    for (final taskName in selected) {
+      final ok = await ApiClient().addMultiAccountRepeatNewNormalTask(
+        scriptName: widget.scriptName,
+        accountIndex: accountIndex,
+        taskName: taskName,
       );
-      if (selected == null || selected.isEmpty) return;
-      for (final taskName in selected) {
-        final ok = await ApiClient().addMultiAccountRepeatNewNormalTask(
-          scriptName: widget.scriptName,
-          accountIndex: accountIndex,
-          taskName: taskName,
-        );
-        if (!ok) return;
-      }
-      if (mounted) _reload();
-    } finally {
-      searchController.dispose();
+      if (!ok) return;
     }
+    if (mounted) _reload();
   }
 
   Widget _buildNormalTaskCatalog(
@@ -859,7 +754,7 @@ class _MultiAccountRepeatNewNormalPanelState
             TaskCatalogIconOnlyButton(
               icon: Icons.tune_rounded,
               tooltip: I18n.homeOpenTaskParams.tr,
-              onPressed: () => _showTaskSettings(
+              onPressed: () => _openTaskSettings(
                 accountIndex,
                 '${configured?['task_name'] ?? taskName}',
                 taskName.tr,
@@ -1582,7 +1477,7 @@ class _MultiAccountRepeatNewNormalPanelState
     }
   }
 
-  Future<void> _showPublicSettings() async {
+  Future<void> _openPublicSettings() async {
     final data = await ApiClient().getMultiAccountRepeatNewNormalPublicArgs(
       scriptName: widget.scriptName,
     );
@@ -1604,10 +1499,26 @@ class _MultiAccountRepeatNewNormalPanelState
       },
     );
     if (!mounted) return;
-    await _showArgsDialog(args, '多账号多任务新普通公共配置'.tr);
+    setState(() {
+      _settingsPage = _NormalSettingsPage.public;
+      _settingsAccountIndex = null;
+      _settingsTaskName = '';
+      _settingsTaskDisplayName = '';
+      _settingsAccountLabel = '';
+    });
   }
 
-  Future<void> _showTaskSettings(
+  Future<String> _accountLabelByIndex(int accountIndex) async {
+    final state = await _stateFuture;
+    for (final account in _maps(state['accounts'])) {
+      if (account['index'] == accountIndex) {
+        return _accountLabel(account);
+      }
+    }
+    return '${'账号'.tr}$accountIndex';
+  }
+
+  Future<void> _openTaskSettings(
     int accountIndex,
     String taskName,
     String taskDisplayName,
@@ -1641,72 +1552,96 @@ class _MultiAccountRepeatNewNormalPanelState
       },
     );
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text('$taskDisplayName：${'账号私有配置'.tr}'),
-                trailing: Wrap(
-                  children: [
-                    IconButton(
-                      tooltip: '恢复默认配置'.tr,
-                      onPressed: () async {
-                        final ok = await ApiClient()
-                            .resetMultiAccountRepeatNewNormalTaskPrivateConfig(
-                              scriptName: widget.scriptName,
-                              accountIndex: accountIndex,
-                              taskName: taskName,
-                            );
-                        if (ok && dialogContext.mounted) {
-                          Navigator.of(dialogContext).pop();
-                        }
-                      },
-                      icon: const Icon(Icons.restart_alt_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '复制到其他账号'.tr,
-                      onPressed: () => _showCopyTaskConfigDialog(
-                        accountIndex,
-                        taskName,
-                        taskDisplayName,
-                      ),
-                      icon: const Icon(Icons.content_copy_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '关闭'.tr,
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
+    final accountLabel = await _accountLabelByIndex(accountIndex);
+    if (!mounted) return;
+    setState(() {
+      _settingsPage = _NormalSettingsPage.task;
+      _settingsAccountIndex = accountIndex;
+      _settingsTaskName = taskName;
+      _settingsTaskDisplayName = taskDisplayName;
+      _settingsAccountLabel = accountLabel;
+    });
+  }
+
+  Future<void> _closeSettingsPage() async {
+    await Get.find<ArgsController>().discardDraftChanges();
+    if (!mounted) return;
+    setState(() {
+      _loadingTasks.remove(_settingsTaskName);
+      _settingsPage = _NormalSettingsPage.none;
+      _settingsAccountIndex = null;
+      _settingsTaskName = '';
+      _settingsTaskDisplayName = '';
+      _settingsAccountLabel = '';
+    });
+    _reload();
+  }
+
+  Widget _buildSettingsPage(BuildContext context) {
+    final isTaskPage = _settingsPage == _NormalSettingsPage.task;
+    final accountIndex = _settingsAccountIndex;
+    final taskName = _settingsTaskName;
+    final title = isTaskPage
+        ? '$_settingsAccountLabel：$_settingsTaskDisplayName：${'账号私有配置'.tr}'
+        : '多账号多任务新普通：${'公共配置'.tr}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              tooltip: '返回'.tr,
+              onPressed: _closeSettingsPage,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              Expanded(
-                child: Args(
-                  scriptName: widget.scriptName,
-                  taskName: taskName,
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
+            ),
+            if (isTaskPage && accountIndex != null && taskName.isNotEmpty)
+              IconButton(
+                tooltip: '恢复默认配置'.tr,
+                onPressed: () async {
+                  final ok = await ApiClient()
+                      .resetMultiAccountRepeatNewNormalTaskPrivateConfig(
+                        scriptName: widget.scriptName,
+                        accountIndex: accountIndex,
+                        taskName: taskName,
+                      );
+                  if (ok && mounted) {
+                    await _closeSettingsPage();
+                  }
+                },
+                icon: const Icon(Icons.restart_alt_rounded),
               ),
-            ],
+            if (isTaskPage && accountIndex != null && taskName.isNotEmpty)
+              IconButton(
+                tooltip: '复制到其他账号'.tr,
+                onPressed: () => _showCopyTaskConfigDialog(
+                  accountIndex,
+                  taskName,
+                  _settingsTaskDisplayName,
+                ),
+                icon: const Icon(Icons.content_copy_rounded),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Args(
+            scriptName: widget.scriptName,
+            taskName: isTaskPage ? taskName : 'MultiAccountRepeatNewNormal',
+            stagingMode: true,
+            onCancel: _closeSettingsPage,
           ),
         ),
-      ),
+      ],
     );
-    await args.discardDraftChanges();
-    if (mounted) {
-      setState(() => _loadingTasks.remove(taskName));
-      _reload();
-    }
   }
 
   Future<void> _showCopyTaskConfigDialog(
@@ -1790,43 +1725,6 @@ class _MultiAccountRepeatNewNormalPanelState
       Get.snackbar(I18n.success.tr, '已复制到${targetIndexes.length}个账号'.tr);
       _reload();
     }
-  }
-
-  Future<void> _showArgsDialog(ArgsController args, String title) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: SizedBox(
-          width: 720,
-          height: 680,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(title),
-                trailing: IconButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ),
-              Expanded(
-                child: Args(
-                  scriptName: widget.scriptName,
-                  taskName: 'MultiAccountRepeatNewNormal',
-                  stagingMode: true,
-                  onCancel: () async {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await args.discardDraftChanges();
-    _reload();
   }
 
   Future<String?> _askText(String title, String label) async {

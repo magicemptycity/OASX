@@ -99,6 +99,7 @@ class _TaskActionBar extends StatelessWidget {
     required this.onEditTask,
     required this.showQuickActions,
     required this.leadingActions,
+    required this.trailingActions,
   });
 
   final VoidCallback? onQuickRun;
@@ -106,6 +107,7 @@ class _TaskActionBar extends StatelessWidget {
   final VoidCallback? onEditTask;
   final bool showQuickActions;
   final List<Widget> leadingActions;
+  final List<Widget> trailingActions;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +132,7 @@ class _TaskActionBar extends StatelessWidget {
           tooltip: I18n.homeOpenTaskParams.tr,
           onPressed: onEditTask,
         ),
+        ...trailingActions,
       ],
     );
   }
