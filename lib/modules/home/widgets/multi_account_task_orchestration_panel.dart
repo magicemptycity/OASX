@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:expansion_tile_group/expansion_tile_group.dart';
 import 'package:oasx/modules/home/widgets/task_status_row.dart';
+import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_row_layout.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_section_card.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_panel.dart';
@@ -46,6 +47,7 @@ class _MultiAccountTaskOrchestrationPanelState
   final Rxn<Map<String, dynamic>> _liveState = Rxn<Map<String, dynamic>>();
   final ScriptService _scriptService = Get.find<ScriptService>();
   Worker? _overviewWorker;
+  Worker? _nativeScheduleWorker;
   Map<String, dynamic>? _activeOverviewTask;
   int _selectedAccount = 1;
   final Set<String> _loadingTasks = <String>{};
@@ -61,11 +63,13 @@ class _MultiAccountTaskOrchestrationPanelState
     );
     _watchState(_stateFuture);
     _bindOverviewPush();
+    _bindNativeScheduleRefresh();
   }
 
   @override
   void dispose() {
     _overviewWorker?.dispose();
+    _nativeScheduleWorker?.dispose();
     super.dispose();
   }
 
@@ -76,6 +80,7 @@ class _MultiAccountTaskOrchestrationPanelState
       return;
     }
     _selectedAccount = 1;
+    _bindNativeScheduleRefresh();
     _activeOverviewTask = null;
     _reload();
   }
@@ -3131,6 +3136,14 @@ class _MultiAccountTaskOrchestrationPanelState
           ),
         ],
       ),
+    );
+  }
+
+  void _bindNativeScheduleRefresh() {
+    _nativeScheduleWorker?.dispose();
+    _nativeScheduleWorker = bindNativeScheduleRefresh(
+      widget.scriptModel,
+      _reload,
     );
   }
 

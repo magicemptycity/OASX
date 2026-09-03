@@ -11,6 +11,7 @@ import 'package:oasx/modules/home/widgets/multi_account_task_list_layout.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
 import 'package:oasx/modules/home/widgets/task_status_row.dart';
+import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 enum _AccountTaskFilter { all, enabled, disabled }
@@ -43,6 +44,7 @@ class _MultiAccountRepeatTimedPanelState
   final Rxn<Map<String, dynamic>> _liveState = Rxn<Map<String, dynamic>>();
   final ScriptService _scriptService = Get.find<ScriptService>();
   Worker? _overviewWorker;
+  Worker? _nativeScheduleWorker;
   Map<String, dynamic>? _activeOverviewTask;
   final Set<String> _loadingTasks = <String>{};
   final Set<String> _hiddenTaskIds = <String>{};
@@ -64,6 +66,7 @@ class _MultiAccountRepeatTimedPanelState
     _watchState(_stateFuture);
     _menuFuture = ApiClient().getScriptMenu();
     _bindOverviewPush();
+    _bindNativeScheduleRefresh();
   }
 
   @override
@@ -73,6 +76,7 @@ class _MultiAccountRepeatTimedPanelState
       return;
     }
     _selectedAccount = 1;
+    _bindNativeScheduleRefresh();
     _activeOverviewTask = null;
     _clearTaskListState();
     _reload();
@@ -81,6 +85,7 @@ class _MultiAccountRepeatTimedPanelState
   @override
   void dispose() {
     _overviewWorker?.dispose();
+    _nativeScheduleWorker?.dispose();
     _taskSearchController.dispose();
     super.dispose();
   }
@@ -1666,6 +1671,14 @@ class _MultiAccountRepeatTimedPanelState
           ),
         ],
       ),
+    );
+  }
+
+  void _bindNativeScheduleRefresh() {
+    _nativeScheduleWorker?.dispose();
+    _nativeScheduleWorker = bindNativeScheduleRefresh(
+      widget.scriptModel,
+      _reload,
     );
   }
 

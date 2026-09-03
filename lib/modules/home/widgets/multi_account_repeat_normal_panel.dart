@@ -10,6 +10,7 @@ import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_row_layout.dart';
 import 'package:oasx/modules/home/widgets/multi_account_task_list_layout.dart';
 import 'package:oasx/modules/home/widgets/task_status_row.dart';
+import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
 import 'package:oasx/translation/i18n_content.dart';
@@ -46,6 +47,7 @@ class _MultiAccountRepeatNewNormalPanelState
     extends State<MultiAccountRepeatNewNormalPanel> {
   late Future<Map<String, dynamic>> _stateFuture;
   late final Future<Map<String, List<String>>> _menuFuture;
+  Worker? _nativeScheduleWorker;
   int _selectedAccount = 1;
   final Set<String> _loadingTasks = <String>{};
   final TextEditingController _taskSearchController = TextEditingController();
@@ -62,6 +64,7 @@ class _MultiAccountRepeatNewNormalPanelState
       scriptName: widget.scriptName,
     );
     _menuFuture = ApiClient().getScriptMenu();
+    _bindNativeScheduleRefresh();
   }
 
   @override
@@ -71,11 +74,13 @@ class _MultiAccountRepeatNewNormalPanelState
       return;
     }
     _selectedAccount = 1;
+    _bindNativeScheduleRefresh();
     _reload();
   }
 
   @override
   void dispose() {
+    _nativeScheduleWorker?.dispose();
     _taskSearchController.dispose();
     super.dispose();
   }
@@ -1868,6 +1873,14 @@ class _MultiAccountRepeatNewNormalPanelState
           ),
         ],
       ),
+    );
+  }
+
+  void _bindNativeScheduleRefresh() {
+    _nativeScheduleWorker?.dispose();
+    _nativeScheduleWorker = bindNativeScheduleRefresh(
+      widget.scriptModel,
+      _reload,
     );
   }
 

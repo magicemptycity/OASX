@@ -6,6 +6,7 @@ import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/task_status_row.dart';
+import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
@@ -34,6 +35,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   late Future<Map<String, dynamic>> _stateFuture;
   final ScriptService _scriptService = Get.find<ScriptService>();
   Worker? _overviewWorker;
+  Worker? _nativeScheduleWorker;
   Map<String, dynamic>? _activeOverviewAccount;
   bool _showDisabledAccounts = false;
   String get _scriptName => widget.scriptModel.name;
@@ -44,11 +46,13 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     super.initState();
     _reload();
     _bindOverviewPush();
+    _bindNativeScheduleRefresh();
   }
 
   @override
   void dispose() {
     _overviewWorker?.dispose();
+    _nativeScheduleWorker?.dispose();
     super.dispose();
   }
 
@@ -57,6 +61,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.scriptModel.name != widget.scriptModel.name) {
       _activeOverviewAccount = null;
+      _bindNativeScheduleRefresh();
       _reload();
     }
   }
@@ -1033,6 +1038,14 @@ class _MultiAccountKekkaiUtilizeNewPanelState
             .map((item) => item.cast<String, dynamic>())
             .toList()
       : <Map<String, dynamic>>[];
+
+  void _bindNativeScheduleRefresh() {
+    _nativeScheduleWorker?.dispose();
+    _nativeScheduleWorker = bindNativeScheduleRefresh(
+      widget.scriptModel,
+      _reload,
+    );
+  }
 
   void _bindOverviewPush() {
     _overviewWorker?.dispose();
