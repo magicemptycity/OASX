@@ -428,6 +428,12 @@ class _MultiAccountKekkaiUtilizeNewPanelState
         );
       },
       detailBuilder: _publicAccountDetail,
+      onSetEnabled: (identifier, enabled) =>
+          ApiClient().setMultiAccountSharedAccountEnabled(
+            scriptName: _scriptName,
+            identifier: identifier,
+            enabled: enabled,
+          ),
       onCopy: (accounts) => showSharedPublicAccountCopyDialog(
         context: context,
         sourceScriptName: _scriptName,

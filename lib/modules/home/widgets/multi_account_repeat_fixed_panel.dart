@@ -987,6 +987,12 @@ class _MultiAccountRepeatNewFixedPanelState
         );
       },
       detailBuilder: _publicAccountDetail,
+      onSetEnabled: (identifier, enabled) =>
+          ApiClient().setMultiAccountSharedAccountEnabled(
+            scriptName: widget.scriptName,
+            identifier: identifier,
+            enabled: enabled,
+          ),
       onCopy: (accounts) => showSharedPublicAccountCopyDialog(
         context: context,
         sourceScriptName: widget.scriptName,

@@ -104,6 +104,21 @@ extension ApiClientScriptX on ApiClient {
     );
   }
 
+  /// Updates the OAS-instance-local master switch for a shared account.
+  Future<bool> setMultiAccountSharedAccountEnabled({
+    required String scriptName,
+    required String identifier,
+    required bool enabled,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/shared-accounts/$identifier/enable',
+        queryParameters: {'enable': enabled},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
   /// Loads the full argument model for one task.
   Future<Map<String, dynamic>> getScriptTask(
     String scriptName,

@@ -183,6 +183,7 @@ Future<void> showPublicAccountLibraryDialog({
   required Future<bool> Function(AccountMap account) onEdit,
   required Future<bool> Function() onAdd,
   required AccountDetailBuilder detailBuilder,
+  Future<bool> Function(String identifier, bool enabled)? onSetEnabled,
   Future<bool> Function(List<AccountMap> accounts)? onCopy,
 }) async {
   var accounts = await loadAccounts();
@@ -203,41 +204,102 @@ Future<void> showPublicAccountLibraryDialog({
                   itemBuilder: (context, index) {
                     final account = accounts[index];
                     final identifier = '${account['identifier'] ?? ''}';
-                    return ListTile(
-                      title: Text(identifier),
-                      subtitle: Text(detailBuilder(account)),
-                      isThreeLine: true,
-                      trailing: Wrap(
-                        children: [
-                          IconButton(
-                            tooltip: '设置'.tr,
-                            onPressed: () async {
-                              if (!await onEdit(account) ||
-                                  !dialogContext.mounted) {
-                                return;
-                              }
-                              final refreshed = await loadAccounts();
-                              if (dialogContext.mounted) {
-                                setDialogState(() => accounts = refreshed);
-                              }
-                            },
-                            icon: const Icon(Icons.edit_rounded),
-                          ),
-                          IconButton(
-                            tooltip: '删除'.tr,
-                            onPressed: () async {
-                              if (!await onDelete(identifier) ||
-                                  !dialogContext.mounted) {
-                                return;
-                              }
-                              setDialogState(() {
-                                accounts = List<AccountMap>.from(accounts)
-                                  ..removeAt(index);
-                              });
-                            },
-                            icon: const Icon(Icons.delete_outline_rounded),
-                          ),
-                        ],
+                    final enabled = account['enabled'] != false;
+                    final detail = enabled
+                        ? detailBuilder(account)
+                        : "${'已全局停用：本 OAS 实例的全部新版多账号任务都会跳过此账号。'.tr}\n${detailBuilder(account)}";
+                    return Opacity(
+                      opacity: enabled ? 1 : 0.55,
+                      child: ListTile(
+                        title: Text(identifier),
+                        subtitle: Text(detail),
+                        isThreeLine: true,
+                        trailing: Wrap(
+                          children: [
+                            if (onSetEnabled != null)
+                              IconButton(
+                                tooltip: enabled ? '停用账号'.tr : '启用账号'.tr,
+                                onPressed: () async {
+                                  if (enabled) {
+                                    final confirmed = await showDialog<bool>(
+                                      context: dialogContext,
+                                      builder: (context) => AlertDialog(
+                                        title: Text('确认停用账号'.tr),
+                                        content: Text(
+                                          '停用后，本 OAS 实例中所有新版多账号功能都会跳过该账号，不切换账号也不执行任务。已有任务和调度配置会保留。'
+                                              .tr,
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(
+                                              context,
+                                            ).pop(false),
+                                            child: Text(I18n.cancel.tr),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            child: Text('停用'.tr),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirmed != true ||
+                                        !dialogContext.mounted) {
+                                      return;
+                                    }
+                                  }
+                                  if (!await onSetEnabled(
+                                        identifier,
+                                        !enabled,
+                                      ) ||
+                                      !dialogContext.mounted) {
+                                    return;
+                                  }
+                                  final refreshed = await loadAccounts();
+                                  if (dialogContext.mounted) {
+                                    setDialogState(() => accounts = refreshed);
+                                  }
+                                },
+                                icon: Icon(
+                                  enabled
+                                      ? Icons.power_settings_new_rounded
+                                      : Icons.power_off_rounded,
+                                  color: enabled
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.outline,
+                                ),
+                              ),
+                            IconButton(
+                              tooltip: '设置'.tr,
+                              onPressed: () async {
+                                if (!await onEdit(account) ||
+                                    !dialogContext.mounted) {
+                                  return;
+                                }
+                                final refreshed = await loadAccounts();
+                                if (dialogContext.mounted) {
+                                  setDialogState(() => accounts = refreshed);
+                                }
+                              },
+                              icon: const Icon(Icons.edit_rounded),
+                            ),
+                            IconButton(
+                              tooltip: '删除'.tr,
+                              onPressed: () async {
+                                if (!await onDelete(identifier) ||
+                                    !dialogContext.mounted) {
+                                  return;
+                                }
+                                setDialogState(() {
+                                  accounts = List<AccountMap>.from(accounts)
+                                    ..removeAt(index);
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
