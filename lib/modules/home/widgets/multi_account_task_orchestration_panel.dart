@@ -295,6 +295,13 @@ class _MultiAccountTaskOrchestrationPanelState
     BuildContext context,
     List<Map<String, dynamic>> accounts,
   ) {
+    final currentAccount = accounts.firstWhere(
+      (account) => account['index'] == _selectedAccount,
+      orElse: () => accounts.first,
+    );
+    final currentAccountIndex =
+        currentAccount['index'] as int? ?? _selectedAccount;
+    final currentAccountEnabled = currentAccount['enabled'] != false;
     return Card(
       // 与配置页的调度器、每日琐事等分组使用相同的浅紫底色。
       // 与每日琐事 Args 中 ExpansionTileItem 的参数保持一致。
@@ -331,6 +338,16 @@ class _MultiAccountTaskOrchestrationPanelState
                   icon: Icons.person_add_alt_1_rounded,
                   label: '添加账号'.tr,
                   filled: true,
+                ),
+                buildAccountManagementButton(
+                  onPressed: () => _setFunctionAccountEnabled(
+                    currentAccountIndex,
+                    !currentAccountEnabled,
+                  ),
+                  icon: currentAccountEnabled
+                      ? Icons.power_settings_new_rounded
+                      : Icons.power_off_rounded,
+                  label: currentAccountEnabled ? '停用当前账号'.tr : '启用当前账号'.tr,
                 ),
                 buildAccountManagementButton(
                   onPressed: () => _showDeleteTaskAccounts(accounts),
@@ -1558,6 +1575,18 @@ class _MultiAccountTaskOrchestrationPanelState
     String valueOrPlaceholder(String value) => value.isEmpty ? '-' : value;
     return '角色名：${valueOrPlaceholder(character)} · 服务器：${valueOrPlaceholder(server)}\n'
         '账号：${valueOrPlaceholder(loginAccount)} · 平台：$platform';
+  }
+
+  Future<void> _setFunctionAccountEnabled(
+    int accountIndex,
+    bool enabled,
+  ) async {
+    final ok = await ApiClient().setMultiAccountTaskOrchestrationAccountEnabled(
+      scriptName: widget.scriptName,
+      accountIndex: accountIndex,
+      enabled: enabled,
+    );
+    if (ok && mounted) _reload();
   }
 
   Future<void> _showPublicAccounts() async {

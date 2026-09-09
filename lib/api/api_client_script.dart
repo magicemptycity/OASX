@@ -91,9 +91,7 @@ extension ApiClientScriptX on ApiClient {
     final res = await request(
       () => post(
         '/$scriptName/weekly_schedule/apply',
-        queryParameters: {
-          'preserve_existing_times': preserveExistingTimes,
-        },
+        queryParameters: {'preserve_existing_times': preserveExistingTimes},
       ),
     );
     if (!res.isSuccess || res.data is! Map) {
@@ -119,16 +117,89 @@ extension ApiClientScriptX on ApiClient {
     return res.isSuccess && res.data == true;
   }
 
+  /// Updates the account-local switch of the new normal multi-account feature.
+  Future<bool> setMultiAccountRepeatNewNormalAccountEnabled({
+    required String scriptName,
+    required int accountIndex,
+    required bool enabled,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_normal/accounts/$accountIndex/enable',
+        queryParameters: {'enable': enabled},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  /// Updates the account-local switch of the fixed-time multi-account feature.
+  Future<bool> setMultiAccountRepeatNewFixedAccountEnabled({
+    required String scriptName,
+    required int accountIndex,
+    required bool enabled,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_new_fixed/accounts/$accountIndex/enable',
+        queryParameters: {'enable': enabled},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  /// Updates the account-local switch of the timed multi-account feature.
+  Future<bool> setMultiAccountRepeatTimedAccountEnabled({
+    required String scriptName,
+    required int accountIndex,
+    required bool enabled,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_repeat_timed/accounts/$accountIndex/enable',
+        queryParameters: {'enable': enabled},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  /// Updates the account-local switch of the task-orchestration feature.
+  Future<bool> setMultiAccountTaskOrchestrationAccountEnabled({
+    required String scriptName,
+    required int accountIndex,
+    required bool enabled,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_task_orchestration/accounts/$accountIndex/enable',
+        queryParameters: {'enable': enabled},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
+  /// Updates the account-local switch of the new multi-account KekkaiUtilize feature.
+  Future<bool> setMultiAccountKekkaiUtilizeNewAccountEnabled({
+    required String scriptName,
+    required int accountIndex,
+    required bool enabled,
+  }) async {
+    final res = await request(
+      () => put(
+        '/$scriptName/multi_account_kekkai_utilize_new/accounts/$accountIndex/account-enable',
+        queryParameters: {'enable': enabled},
+      ),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
   /// Loads the full argument model for one task.
   Future<Map<String, dynamic>> getScriptTask(
     String scriptName,
     String taskName,
   ) async {
     final res = await request(
-      () => get(
-        '/$scriptName/$taskName/args',
-        options: _backendNoCacheOptions(),
-      ),
+      () =>
+          get('/$scriptName/$taskName/args', options: _backendNoCacheOptions()),
     );
     return res.data ?? {};
   }

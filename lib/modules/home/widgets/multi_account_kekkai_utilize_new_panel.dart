@@ -126,7 +126,11 @@ class _MultiAccountKekkaiUtilizeNewPanelState
               final accounts = _showDisabledAccounts
                   ? allAccounts
                   : allAccounts
-                        .where((item) => item['enabled'] != false)
+                        .where(
+                          (item) =>
+                              item['enabled'] != false &&
+                              item['account_enabled'] != false,
+                        )
                         .toList();
               if (allAccounts.isEmpty) {
                 // 没有账号时只显示居中的添加账号卡片，不显示账号管理栏。
@@ -264,6 +268,7 @@ class _MultiAccountKekkaiUtilizeNewPanelState
     final nextRun =
         '${account['next_run'] ?? account['next_utilize_time'] ?? ''}'.trim();
     final enabled = account['enabled'] != false;
+    final accountEnabled = account['account_enabled'] != false;
     final activeIndex = _activeOverviewAccount?['account_index'];
     final isRunning = activeIndex == index;
     final type = isRunning
@@ -278,40 +283,59 @@ class _MultiAccountKekkaiUtilizeNewPanelState
       type: type,
       timeText: nextRun,
     );
-    return TaskStatusRow(
-      key: ValueKey(task.rowId),
-      controller: widget.controller,
-      sourceScriptName: _scriptName,
-      task: task,
-      canQuickSchedule: enabled && !isRunning,
-      quickScheduleLocked: isRunning,
-      leadingActions: [
-        TaskStatusActionIcon(
-          icon: Icons.block_rounded,
-          tooltip: '禁卡时段配置'.tr,
-          onPressed: () => _showForbidSettings(index, accountLabel),
-        ),
-        TaskStatusActionIcon(
-          icon: Icons.delete_outline_rounded,
-          tooltip: '删除账号'.tr,
-          onPressed: () => _deleteAccount(index, accountLabel),
-        ),
-      ],
-      onSetNextRun: (_, value) => _setAccountNextRun(index, value),
-      onQuickRun: (_) => _quickScheduleAccount(index, runNow: true),
-      onQuickWait: (_) => _quickScheduleAccount(index, runNow: false),
-      onEditTask: (_) => _openAccountTaskSettings(index, accountLabel),
-      onDisableTask: (_) =>
-          ApiClient().setMultiAccountKekkaiUtilizeNewAccountEnable(
-            scriptName: _scriptName,
-            accountIndex: index,
-            enable: false,
+    return Opacity(
+      opacity: accountEnabled ? 1 : 0.55,
+      child: TaskStatusRow(
+        key: ValueKey(task.rowId),
+        controller: widget.controller,
+        sourceScriptName: _scriptName,
+        task: task,
+        canQuickSchedule: accountEnabled && enabled && !isRunning,
+        quickScheduleLocked: isRunning,
+        leadingActions: [
+          TaskStatusActionIcon(
+            icon: accountEnabled
+                ? Icons.power_settings_new_rounded
+                : Icons.power_off_rounded,
+            tooltip: accountEnabled ? '停用当前功能账号'.tr : '启用当前功能账号'.tr,
+            onPressed: () => _setAccountLocalEnabled(index, !accountEnabled),
           ),
-      onDismissed: (_) => _reload(),
-      dragEnabled: false,
-      swipeEnabled: enabled && !isRunning,
-      activeDragPayload: null,
+          TaskStatusActionIcon(
+            icon: Icons.block_rounded,
+            tooltip: '禁卡时段配置'.tr,
+            onPressed: () => _showForbidSettings(index, accountLabel),
+          ),
+          TaskStatusActionIcon(
+            icon: Icons.delete_outline_rounded,
+            tooltip: '删除账号'.tr,
+            onPressed: () => _deleteAccount(index, accountLabel),
+          ),
+        ],
+        onSetNextRun: (_, value) => _setAccountNextRun(index, value),
+        onQuickRun: (_) => _quickScheduleAccount(index, runNow: true),
+        onQuickWait: (_) => _quickScheduleAccount(index, runNow: false),
+        onEditTask: (_) => _openAccountTaskSettings(index, accountLabel),
+        onDisableTask: (_) =>
+            ApiClient().setMultiAccountKekkaiUtilizeNewAccountEnable(
+              scriptName: _scriptName,
+              accountIndex: index,
+              enable: false,
+            ),
+        onDismissed: (_) => _reload(),
+        dragEnabled: false,
+        swipeEnabled: accountEnabled && enabled && !isRunning,
+        activeDragPayload: null,
+      ),
     );
+  }
+
+  Future<void> _setAccountLocalEnabled(int accountIndex, bool enabled) async {
+    final ok = await ApiClient().setMultiAccountKekkaiUtilizeNewAccountEnabled(
+      scriptName: _scriptName,
+      accountIndex: accountIndex,
+      enabled: enabled,
+    );
+    if (ok && mounted) _reload();
   }
 
   Future<void> _quickSchedule(bool runNow) async {
