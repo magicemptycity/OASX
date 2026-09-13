@@ -10,6 +10,7 @@ import 'package:oasx/modules/home/widgets/script_schedule_refresh.dart';
 import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
+import 'package:oasx/modules/home/widgets/multi_account_account_header.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
 enum _KekkaiUtilizeSettingsPage { none, account, public }
@@ -161,69 +162,26 @@ class _MultiAccountKekkaiUtilizeNewPanelState
   Widget _buildHeader(
     BuildContext context,
     List<Map<String, dynamic>> accounts,
-  ) => Card(
-    // 与每日琐事 Args 中 ExpansionTileItem 的参数保持一致。
-    color: Theme.of(
-      context,
-    ).colorScheme.secondaryContainer.withValues(alpha: 0.24),
-    elevation: 0,
-    surfaceTintColor: Colors.transparent,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    margin: EdgeInsets.zero,
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text('账号管理'.tr, style: Theme.of(context).textTheme.titleSmall),
-              buildAccountManagementButton(
-                onPressed: _showPublicAccounts,
-                icon: Icons.groups_rounded,
-                label: '公共账号库'.tr,
-              ),
-              buildAccountManagementButton(
-                onPressed: _openPublicSettings,
-                icon: Icons.settings_rounded,
-                label: '公共配置'.tr,
-              ),
-              IconButton(
-                tooltip: _showDisabledAccounts ? '隐藏未启用账号'.tr : '显示未启用账号'.tr,
-                onPressed: () => setState(
-                  () => _showDisabledAccounts = !_showDisabledAccounts,
-                ),
-                icon: Icon(
-                  _showDisabledAccounts
-                      ? Icons.filter_alt_off_rounded
-                      : Icons.filter_alt_rounded,
-                ),
-              ),
-              buildAccountManagementButton(
-                onPressed: _showAddAccount,
-                icon: Icons.person_add_alt_1_rounded,
-                label: '添加账号'.tr,
-                filled: true,
-              ),
-              buildAccountManagementButton(
-                onPressed: () => _showDeleteAccounts(accounts),
-                icon: Icons.person_remove_outlined,
-                label: '删除账号'.tr,
-              ),
-            ],
+  ) {
+    return MultiAccountAccountHeader(
+      onPublicAccounts: _showPublicAccounts,
+      onPublicSettings: _openPublicSettings,
+      onAddAccount: _showAddAccount,
+      onDeleteAccounts: () => _showDeleteAccounts(accounts),
+      extraActions: [
+        IconButton(
+          tooltip: _showDisabledAccounts ? '隐藏未启用账号'.tr : '显示未启用账号'.tr,
+          onPressed: () =>
+              setState(() => _showDisabledAccounts = !_showDisabledAccounts),
+          icon: Icon(
+            _showDisabledAccounts
+                ? Icons.filter_alt_off_rounded
+                : Icons.filter_alt_rounded,
           ),
-          const SizedBox(height: 10),
-          Divider(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      ],
+    );
+  }
 
   Widget _buildEmpty(BuildContext context) {
     // 与多账号多任务新的空页面保持一致，避免卡片被 Expanded 拉伸成竖长条。

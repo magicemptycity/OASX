@@ -13,6 +13,7 @@ import 'package:oasx/modules/home/models/config_model.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
+import 'package:oasx/modules/home/widgets/multi_account_account_header.dart';
 import 'package:oasx/modules/home/widgets/multi_account_enable_tasks_dialog.dart';
 import 'package:oasx/translation/i18n_content.dart';
 
@@ -295,79 +296,20 @@ class _MultiAccountTaskOrchestrationPanelState
     BuildContext context,
     List<Map<String, dynamic>> accounts,
   ) {
-    final currentAccount = accounts.firstWhere(
-      (account) => account['index'] == _selectedAccount,
+    final current = accounts.firstWhere(
+      (item) => item['index'] == _selectedAccount,
       orElse: () => accounts.first,
     );
-    final currentAccountIndex =
-        currentAccount['index'] as int? ?? _selectedAccount;
-    final currentAccountEnabled = currentAccount['enabled'] != false;
-    return Card(
-      // 与配置页的调度器、每日琐事等分组使用相同的浅紫底色。
-      // 与每日琐事 Args 中 ExpansionTileItem 的参数保持一致。
-      color: Theme.of(
-        context,
-      ).colorScheme.secondaryContainer.withValues(alpha: 0.24),
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text('账号管理'.tr, style: Theme.of(context).textTheme.titleSmall),
-                buildAccountManagementButton(
-                  onPressed: _showPublicAccounts,
-                  icon: Icons.groups_rounded,
-                  label: '公共账号库'.tr,
-                ),
-                buildAccountManagementButton(
-                  onPressed: _openPublicSettings,
-                  icon: Icons.settings_rounded,
-                  label: '公共配置'.tr,
-                ),
-                buildAccountManagementButton(
-                  onPressed: _showAddTaskAccount,
-                  icon: Icons.person_add_alt_1_rounded,
-                  label: '添加账号'.tr,
-                  filled: true,
-                ),
-                buildAccountManagementButton(
-                  onPressed: () => _setFunctionAccountEnabled(
-                    currentAccountIndex,
-                    !currentAccountEnabled,
-                  ),
-                  icon: currentAccountEnabled
-                      ? Icons.power_settings_new_rounded
-                      : Icons.power_off_rounded,
-                  label: currentAccountEnabled ? '停用当前账号'.tr : '启用当前账号'.tr,
-                ),
-                buildAccountManagementButton(
-                  onPressed: () => _showDeleteTaskAccounts(accounts),
-                  icon: Icons.person_remove_outlined,
-                  label: '删除账号'.tr,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Divider(
-              height: 1,
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-            const SizedBox(height: 10),
-            Text('运行账号'.tr, style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            _buildAccountSelector(context, accounts),
-          ],
-        ),
-      ),
+    final index = current['index'] as int? ?? _selectedAccount;
+    final enabled = current['enabled'] != false;
+    return MultiAccountAccountHeader(
+      accountSelector: _buildAccountSelector(context, accounts),
+      onPublicAccounts: _showPublicAccounts,
+      onPublicSettings: _openPublicSettings,
+      onAddAccount: _showAddTaskAccount,
+      onToggleAccount: () => _setFunctionAccountEnabled(index, !enabled),
+      onDeleteAccounts: () => _showDeleteTaskAccounts(accounts),
+      accountEnabled: enabled,
     );
   }
 

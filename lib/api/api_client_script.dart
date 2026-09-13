@@ -1,5 +1,53 @@
 part of 'api_client.dart';
 
+/// 通用新多账号功能发现接口。具体功能仍可继续使用原有专属接口。
+extension ApiClientMultiAccountFeatureX on ApiClient {
+  Future<List<Map<String, dynamic>>> getMultiAccountFeatures(
+    String scriptName,
+  ) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi-account/features',
+        options: _backendNoCacheOptions(),
+      ),
+    );
+    if (!res.isSuccess || res.data is! Map) return <Map<String, dynamic>>[];
+    final items = (res.data['features'] as List?) ?? const [];
+    return items
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>?> getMultiAccountFeatureManifest(
+    String scriptName,
+    String featureKey,
+  ) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi-account/$featureKey/manifest',
+        options: _backendNoCacheOptions(),
+      ),
+    );
+    if (!res.isSuccess || res.data is! Map) return null;
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<Map<String, dynamic>?> getMultiAccountFeatureAccounts(
+    String scriptName,
+    String featureKey,
+  ) async {
+    final res = await request(
+      () => get(
+        '/$scriptName/multi-account/$featureKey/accounts',
+        options: _backendNoCacheOptions(),
+      ),
+    );
+    if (!res.isSuccess || res.data is! Map) return null;
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+}
+
 extension ApiClientScriptX on ApiClient {
   Future<WeeklyScheduleData?> getWeeklySchedule(String scriptName) async {
     final res = await request(
