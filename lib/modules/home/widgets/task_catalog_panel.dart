@@ -68,6 +68,7 @@ class _TaskCatalogPanelState extends State<TaskCatalogPanel> {
       return;
     }
     _enabledOverrides.clear();
+    MultiAccountFeaturePanel.invalidateFeatureCache(widget.scriptModel.name);
     _scrollTaskListToTop();
   }
 

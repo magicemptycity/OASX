@@ -1,5 +1,6 @@
 class MultiAccountFeatureDescriptor {
   const MultiAccountFeatureDescriptor({
+    required this.protocolVersion,
     required this.key,
     required this.taskName,
     required this.displayName,
@@ -15,6 +16,7 @@ class MultiAccountFeatureDescriptor {
     this.overviewKind,
   });
 
+  final int protocolVersion;
   final String key;
   final String taskName;
   final String displayName;
@@ -34,6 +36,7 @@ class MultiAccountFeatureDescriptor {
         ? (json['capabilities'] as Map).cast<String, dynamic>()
         : const <String, dynamic>{};
     return MultiAccountFeatureDescriptor(
+      protocolVersion: int.tryParse('${json['protocol_version'] ?? 1}') ?? 1,
       key: '${json['key'] ?? ''}',
       taskName: '${json['task_name'] ?? ''}',
       displayName: '${json['name'] ?? json['task_name'] ?? ''}',

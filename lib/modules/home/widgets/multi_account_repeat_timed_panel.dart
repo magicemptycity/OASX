@@ -1329,7 +1329,7 @@ class _MultiAccountRepeatTimedPanelState
     final taskName = _settingsTaskName;
     final title = isTaskPage
         ? '${_accountLabelByIndex(accountIndex)}：$_settingsTaskDisplayName：${'账号私有配置'.tr}'
-        : '多账号多任务定时：${'公共配置'.tr}';
+        : '${widget.feature.displayName}：${'公共配置'.tr}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

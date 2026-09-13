@@ -1837,7 +1837,7 @@ class _MultiAccountRepeatNewFixedPanelState
         ? _settingsBatchDisplayName
         : '特殊任务'.tr;
     final title = switch (page) {
-      _FixedSettingsPage.public => '多账号多任务新固定时间：${'公共配置'.tr}',
+      _FixedSettingsPage.public => '${widget.feature.displayName}：${'公共配置'.tr}',
       _FixedSettingsPage.accountTask =>
         '$accountLabel：$_settingsTaskDisplayName：${'账号私有配置'.tr}',
       _FixedSettingsPage.batchScheduler =>

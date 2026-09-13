@@ -16,7 +16,7 @@ import 'package:oasx/translation/i18n_content.dart';
 
 enum _AccountSchedulerSettingsPage { none, account, public }
 
-/// 新版多账号挂卡：运行账号使用公共账号库，挂卡配置与禁止挂卡时段均由账号独立保存。
+/// 通用账号调度型多账号页面；业务名称、配置路径及可选能力由后端提供。
 class MultiAccountSchedulerFeaturePanel extends StatefulWidget {
   const MultiAccountSchedulerFeaturePanel({
     super.key,

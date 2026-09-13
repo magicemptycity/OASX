@@ -2609,7 +2609,8 @@ class _MultiAccountTaskOrchestrationPanelState
         ? _settingsBatchDisplayName
         : '顺序任务组'.tr;
     final title = switch (page) {
-      _OrchestrationSettingsPage.public => '多账号任务编排：${'公共配置'.tr}',
+      _OrchestrationSettingsPage.public =>
+        '${widget.feature.displayName}：${'公共配置'.tr}',
       _OrchestrationSettingsPage.accountTask =>
         '$accountLabel：$_settingsTaskDisplayName：${'账号私有配置'.tr}',
       _OrchestrationSettingsPage.batchScheduler =>
