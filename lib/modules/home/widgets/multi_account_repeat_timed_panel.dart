@@ -5,6 +5,7 @@ import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
+import 'package:oasx/modules/home/models/multi_account_feature_descriptor.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_row_layout.dart';
 import 'package:oasx/modules/home/widgets/multi_account_task_list_layout.dart';
@@ -27,11 +28,13 @@ class MultiAccountRepeatTimedPanel extends StatefulWidget {
     required this.controller,
     required this.scriptModel,
     required this.onBack,
+    required this.feature,
   });
 
   final HomeDashboardController controller;
   final ScriptModel scriptModel;
   final Future<void> Function() onBack;
+  final MultiAccountFeatureDescriptor feature;
 
   String get scriptName => scriptModel.name;
 
@@ -42,6 +45,9 @@ class MultiAccountRepeatTimedPanel extends StatefulWidget {
 
 class _MultiAccountRepeatTimedPanelState
     extends State<MultiAccountRepeatTimedPanel> {
+  MultiAccountTimedFeatureApi get _featureApi =>
+      MultiAccountTimedFeatureApi(widget.feature);
+  String get _featureTaskName => widget.feature.taskName;
   late Future<Map<String, dynamic>> _stateFuture;
   late final Future<Map<String, List<String>>> _menuFuture;
   int _selectedAccount = 1;
@@ -68,7 +74,7 @@ class _MultiAccountRepeatTimedPanelState
   @override
   void initState() {
     super.initState();
-    _stateFuture = ApiClient().getMultiAccountRepeatTimedAccounts(
+    _stateFuture = _featureApi.getMultiAccountRepeatTimedAccounts(
       scriptName: widget.scriptName,
     );
     _watchState(_stateFuture);
@@ -151,13 +157,10 @@ class _MultiAccountRepeatTimedPanelState
 
   Widget _buildTaskToolbar(BuildContext context) {
     final canQuickSchedule =
-        widget.controller.isTaskEnabled(
-          widget.scriptModel,
-          'MultiAccountRepeatTimed',
-        ) &&
+        widget.controller.isTaskEnabled(widget.scriptModel, _featureTaskName) &&
         widget.controller.canQuickScheduleTask(
           widget.scriptModel,
-          'MultiAccountRepeatTimed',
+          _featureTaskName,
         );
     return Row(
       children: [
@@ -169,7 +172,7 @@ class _MultiAccountRepeatTimedPanelState
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            '多账号多任务定时'.tr,
+            widget.feature.displayName.tr,
             style: Theme.of(context).textTheme.titleMedium,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -191,7 +194,7 @@ class _MultiAccountRepeatTimedPanelState
         ),
         TaskJsonTransferActions(
           configName: widget.scriptName,
-          taskName: 'MultiAccountRepeatTimed',
+          taskName: _featureTaskName,
           onImported: _reloadAfterImport,
         ),
       ],
@@ -205,11 +208,11 @@ class _MultiAccountRepeatTimedPanelState
   Future<void> _quickSchedule({required bool runNow}) async {
     final success = await widget.controller.quickScheduleTask(
       scriptName: widget.scriptName,
-      taskName: 'MultiAccountRepeatTimed',
+      taskName: _featureTaskName,
       runNow: runNow,
     );
     if (success) {
-      Get.snackbar(I18n.success.tr, '多账号多任务定时'.tr);
+      Get.snackbar(I18n.success.tr, widget.feature.displayName.tr);
     }
   }
 
@@ -659,12 +662,12 @@ class _MultiAccountRepeatTimedPanelState
     if (_togglingCatalogTasks.contains(taskName)) return;
     setState(() => _togglingCatalogTasks.add(taskName));
     final ok = enable
-        ? await ApiClient().addMultiAccountRepeatTimedTask(
+        ? await _featureApi.addMultiAccountRepeatTimedTask(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             taskName: taskName,
           )
-        : await ApiClient().setMultiAccountRepeatTimedTaskEnable(
+        : await _featureApi.setMultiAccountRepeatTimedTaskEnable(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             taskName: taskName,
@@ -925,7 +928,7 @@ class _MultiAccountRepeatTimedPanelState
     int accountIndex,
     bool enabled,
   ) async {
-    final ok = await ApiClient().setMultiAccountRepeatTimedAccountEnabled(
+    final ok = await _featureApi.setMultiAccountRepeatTimedAccountEnabled(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       enabled: enabled,
@@ -937,12 +940,12 @@ class _MultiAccountRepeatTimedPanelState
     await showPublicAccountLibraryDialog(
       context: context,
       loadAccounts: () async => _maps(
-        (await ApiClient().getMultiAccountRepeatTimedPublicAccounts(
+        (await _featureApi.getMultiAccountRepeatTimedPublicAccounts(
           scriptName: widget.scriptName,
         ))['accounts'],
       ),
       onDelete: (identifier) =>
-          ApiClient().deleteMultiAccountRepeatTimedPublicAccount(
+          _featureApi.deleteMultiAccountRepeatTimedPublicAccount(
             scriptName: widget.scriptName,
             identifier: identifier,
           ),
@@ -950,7 +953,7 @@ class _MultiAccountRepeatTimedPanelState
       onAdd: () async {
         final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
         if (identifier == null || identifier.trim().isEmpty) return false;
-        return ApiClient().addMultiAccountRepeatTimedPublicAccount(
+        return _featureApi.addMultiAccountRepeatTimedPublicAccount(
           scriptName: widget.scriptName,
           identifier: identifier.trim(),
         );
@@ -1040,7 +1043,7 @@ class _MultiAccountRepeatTimedPanelState
                   ('apple_or_android', 'boolean', apple),
                 ];
                 for (final field in fields) {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .putMultiAccountRepeatTimedPublicAccountValue(
                         scriptName: widget.scriptName,
                         identifier: currentIdentifier,
@@ -1076,7 +1079,7 @@ class _MultiAccountRepeatTimedPanelState
   }
 
   Future<void> _showAddTaskAccount() async {
-    final library = await ApiClient().getMultiAccountRepeatTimedPublicAccounts(
+    final library = await _featureApi.getMultiAccountRepeatTimedPublicAccounts(
       scriptName: widget.scriptName,
     );
     final state = await _stateFuture;
@@ -1094,7 +1097,7 @@ class _MultiAccountRepeatTimedPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final identifier in selected) {
-      await ApiClient().addMultiAccountRepeatTimedAccount(
+      await _featureApi.addMultiAccountRepeatTimedAccount(
         scriptName: widget.scriptName,
         publicAccountIdentifier: identifier,
       );
@@ -1119,7 +1122,7 @@ class _MultiAccountRepeatTimedPanelState
     if (confirmed != true) return;
     final sortedIndexes = [...indexes]..sort((a, b) => b.compareTo(a));
     for (final accountIndex in sortedIndexes) {
-      await ApiClient().deleteMultiAccountRepeatTimedAccount(
+      await _featureApi.deleteMultiAccountRepeatTimedAccount(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
       );
@@ -1134,7 +1137,7 @@ class _MultiAccountRepeatTimedPanelState
       '删除后会同时清除该账号下的任务及私有配置，是否继续？'.tr,
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatTimedAccount(
+    if (await _featureApi.deleteMultiAccountRepeatTimedAccount(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
     )) {
@@ -1181,7 +1184,7 @@ class _MultiAccountRepeatTimedPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final taskName in selected) {
-      final ok = await ApiClient().addMultiAccountRepeatTimedTask(
+      final ok = await _featureApi.addMultiAccountRepeatTimedTask(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
         taskName: taskName,
@@ -1196,7 +1199,7 @@ class _MultiAccountRepeatTimedPanelState
     String taskName,
     String nextRun,
   ) async {
-    final ok = await ApiClient().putMultiAccountRepeatTimedTaskArg(
+    final ok = await _featureApi.putMultiAccountRepeatTimedTaskArg(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1215,7 +1218,7 @@ class _MultiAccountRepeatTimedPanelState
   }) async {
     if (_loadingTasks.contains(taskName)) return;
     setState(() => _loadingTasks.add(taskName));
-    final ok = await ApiClient().quickScheduleMultiAccountRepeatTimedTask(
+    final ok = await _featureApi.quickScheduleMultiAccountRepeatTimedTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1227,7 +1230,7 @@ class _MultiAccountRepeatTimedPanelState
   }
 
   Future<bool> _disableTaskBySwipe(int accountIndex, String taskName) {
-    return ApiClient().setMultiAccountRepeatTimedTaskEnable(
+    return _featureApi.setMultiAccountRepeatTimedTaskEnable(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1236,18 +1239,18 @@ class _MultiAccountRepeatTimedPanelState
   }
 
   Future<void> _openPublicSettings() async {
-    final data = await ApiClient().getMultiAccountRepeatTimedPublicArgs(
+    final data = await _featureApi.getMultiAccountRepeatTimedPublicArgs(
       scriptName: widget.scriptName,
     );
     if (!mounted || data.isEmpty) return;
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountRepeatTimed',
+      task: _featureTaskName,
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatTimedPublicArg(
+        return _featureApi.putMultiAccountRepeatTimedPublicArg(
           scriptName: config,
           groupName: group,
           argumentName: argument,
@@ -1271,7 +1274,7 @@ class _MultiAccountRepeatTimedPanelState
     String taskDisplayName,
   ) async {
     setState(() => _loadingTasks.add(taskName));
-    final data = await ApiClient().getMultiAccountRepeatTimedTaskArgs(
+    final data = await _featureApi.getMultiAccountRepeatTimedTaskArgs(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1287,7 +1290,7 @@ class _MultiAccountRepeatTimedPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatTimedTaskArg(
+        return _featureApi.putMultiAccountRepeatTimedTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           taskName: task,
@@ -1350,7 +1353,7 @@ class _MultiAccountRepeatTimedPanelState
               IconButton(
                 tooltip: '恢复默认配置'.tr,
                 onPressed: () async {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .resetMultiAccountRepeatTimedTaskPrivateConfig(
                         scriptName: widget.scriptName,
                         accountIndex: accountIndex,
@@ -1378,7 +1381,7 @@ class _MultiAccountRepeatTimedPanelState
         Expanded(
           child: Args(
             scriptName: widget.scriptName,
-            taskName: isTaskPage ? taskName : 'MultiAccountRepeatTimed',
+            taskName: isTaskPage ? taskName : _featureTaskName,
             stagingMode: true,
             onCancel: _closeSettingsPage,
           ),
@@ -1468,7 +1471,7 @@ class _MultiAccountRepeatTimedPanelState
       ),
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
-    final success = await ApiClient()
+    final success = await _featureApi
         .copyMultiAccountRepeatTimedTaskPrivateConfig(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
@@ -1571,7 +1574,7 @@ class _MultiAccountRepeatTimedPanelState
 
   void _reload() {
     if (!mounted) return;
-    final future = ApiClient().getMultiAccountRepeatTimedAccounts(
+    final future = _featureApi.getMultiAccountRepeatTimedAccounts(
       scriptName: widget.scriptName,
     );
     _stateFuture = future;

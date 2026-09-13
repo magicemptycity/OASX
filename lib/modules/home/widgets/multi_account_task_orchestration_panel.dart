@@ -10,6 +10,7 @@ import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
+import 'package:oasx/modules/home/models/multi_account_feature_descriptor.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
@@ -37,11 +38,13 @@ class MultiAccountTaskOrchestrationPanel extends StatefulWidget {
     required this.controller,
     required this.scriptModel,
     required this.onBack,
+    required this.feature,
   });
 
   final HomeDashboardController controller;
   final ScriptModel scriptModel;
   final Future<void> Function() onBack;
+  final MultiAccountFeatureDescriptor feature;
 
   String get scriptName => scriptModel.name;
 
@@ -52,6 +55,9 @@ class MultiAccountTaskOrchestrationPanel extends StatefulWidget {
 
 class _MultiAccountTaskOrchestrationPanelState
     extends State<MultiAccountTaskOrchestrationPanel> {
+  MultiAccountOrchestrationFeatureApi get _featureApi =>
+      MultiAccountOrchestrationFeatureApi(widget.feature);
+  String get _featureTaskName => widget.feature.taskName;
   late Future<Map<String, dynamic>> _stateFuture;
   late final Future<Map<String, List<String>>> _menuFuture;
   final Rxn<Map<String, dynamic>> _liveState = Rxn<Map<String, dynamic>>();
@@ -77,7 +83,7 @@ class _MultiAccountTaskOrchestrationPanelState
   @override
   void initState() {
     super.initState();
-    _stateFuture = ApiClient().getMultiAccountTaskOrchestrationAccounts(
+    _stateFuture = _featureApi.getMultiAccountTaskOrchestrationAccounts(
       scriptName: widget.scriptName,
     );
     _watchState(_stateFuture);
@@ -202,13 +208,10 @@ class _MultiAccountTaskOrchestrationPanelState
 
   Widget _buildTaskToolbar(BuildContext context) {
     final canQuickSchedule =
-        widget.controller.isTaskEnabled(
-          widget.scriptModel,
-          'MultiAccountTaskOrchestration',
-        ) &&
+        widget.controller.isTaskEnabled(widget.scriptModel, _featureTaskName) &&
         widget.controller.canQuickScheduleTask(
           widget.scriptModel,
-          'MultiAccountTaskOrchestration',
+          _featureTaskName,
         );
     return Row(
       children: [
@@ -220,7 +223,7 @@ class _MultiAccountTaskOrchestrationPanelState
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            '多账号任务编排'.tr,
+            widget.feature.displayName.tr,
             style: Theme.of(context).textTheme.titleMedium,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -242,7 +245,7 @@ class _MultiAccountTaskOrchestrationPanelState
         ),
         TaskJsonTransferActions(
           configName: widget.scriptName,
-          taskName: 'MultiAccountTaskOrchestration',
+          taskName: _featureTaskName,
           onImported: _reloadAfterImport,
         ),
       ],
@@ -256,11 +259,11 @@ class _MultiAccountTaskOrchestrationPanelState
   Future<void> _quickSchedule({required bool runNow}) async {
     final success = await widget.controller.quickScheduleTask(
       scriptName: widget.scriptName,
-      taskName: 'MultiAccountTaskOrchestration',
+      taskName: _featureTaskName,
       runNow: runNow,
     );
     if (success) {
-      Get.snackbar(I18n.success.tr, '多账号任务编排'.tr);
+      Get.snackbar(I18n.success.tr, widget.feature.displayName.tr);
     }
   }
 
@@ -490,7 +493,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String taskName,
     String value,
   ) async {
-    if (await ApiClient().putMultiAccountTaskOrchestrationTaskArg(
+    if (await _featureApi.putMultiAccountTaskOrchestrationTaskArg(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -508,7 +511,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String taskName,
     bool value,
   ) async {
-    final ok = await ApiClient().putMultiAccountTaskOrchestrationTaskArg(
+    final ok = await _featureApi.putMultiAccountTaskOrchestrationTaskArg(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -526,7 +529,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String batchId,
     String value,
   ) async {
-    if (await ApiClient()
+    if (await _featureApi
         .putMultiAccountTaskOrchestrationFixedTimeBatchSchedulerArg(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -561,7 +564,7 @@ class _MultiAccountTaskOrchestrationPanelState
       isTaskEnabledOverride: (taskName) =>
           enabledKeys.contains(_fixedTaskKey(taskName)),
       onToggleEnabledOverride: (taskName, enable) => enable
-          ? ApiClient().addMultiAccountTaskOrchestrationSingleTask(
+          ? _featureApi.addMultiAccountTaskOrchestrationSingleTask(
               scriptName: widget.scriptName,
               accountIndex: accountIndex,
               taskName: taskName,
@@ -612,7 +615,7 @@ class _MultiAccountTaskOrchestrationPanelState
     return FutureBuilder<List<dynamic>>(
       future: Future.wait<dynamic>([
         ApiClient().getScriptMenu(),
-        ApiClient().getMultiAccountTaskOrchestrationFixedTimeTasks(
+        _featureApi.getMultiAccountTaskOrchestrationFixedTimeTasks(
           scriptName: widget.scriptName,
         ),
       ]),
@@ -732,7 +735,7 @@ class _MultiAccountTaskOrchestrationPanelState
     if (_loadingTasks.contains(key)) return;
     setState(() => _loadingTasks.add(key));
     final ok = enable
-        ? await ApiClient().addMultiAccountTaskOrchestrationSingleTask(
+        ? await _featureApi.addMultiAccountTaskOrchestrationSingleTask(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             taskName: taskName,
@@ -958,7 +961,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String taskName, {
     required bool runNow,
   }) async {
-    if (await ApiClient().quickScheduleMultiAccountTaskOrchestrationSingleTask(
+    if (await _featureApi.quickScheduleMultiAccountTaskOrchestrationSingleTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1212,7 +1215,7 @@ class _MultiAccountTaskOrchestrationPanelState
       ),
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
-    final success = await ApiClient()
+    final success = await _featureApi
         .copyMultiAccountTaskOrchestrationFixedTimeBatch(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
@@ -1523,7 +1526,7 @@ class _MultiAccountTaskOrchestrationPanelState
     int accountIndex,
     bool enabled,
   ) async {
-    final ok = await ApiClient().setMultiAccountTaskOrchestrationAccountEnabled(
+    final ok = await _featureApi.setMultiAccountTaskOrchestrationAccountEnabled(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       enabled: enabled,
@@ -1535,12 +1538,12 @@ class _MultiAccountTaskOrchestrationPanelState
     await showPublicAccountLibraryDialog(
       context: context,
       loadAccounts: () async => _maps(
-        (await ApiClient().getMultiAccountTaskOrchestrationPublicAccounts(
+        (await _featureApi.getMultiAccountTaskOrchestrationPublicAccounts(
           scriptName: widget.scriptName,
         ))['accounts'],
       ),
       onDelete: (identifier) =>
-          ApiClient().deleteMultiAccountTaskOrchestrationPublicAccount(
+          _featureApi.deleteMultiAccountTaskOrchestrationPublicAccount(
             scriptName: widget.scriptName,
             identifier: identifier,
           ),
@@ -1548,7 +1551,7 @@ class _MultiAccountTaskOrchestrationPanelState
       onAdd: () async {
         final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
         if (identifier == null || identifier.trim().isEmpty) return false;
-        return ApiClient().addMultiAccountTaskOrchestrationPublicAccount(
+        return _featureApi.addMultiAccountTaskOrchestrationPublicAccount(
           scriptName: widget.scriptName,
           identifier: identifier.trim(),
         );
@@ -1638,7 +1641,7 @@ class _MultiAccountTaskOrchestrationPanelState
                   ('apple_or_android', 'boolean', apple),
                 ];
                 for (final field in fields) {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .putMultiAccountTaskOrchestrationPublicAccountValue(
                         scriptName: widget.scriptName,
                         identifier: currentIdentifier,
@@ -1674,7 +1677,7 @@ class _MultiAccountTaskOrchestrationPanelState
   }
 
   Future<void> _showAddTaskAccount() async {
-    final library = await ApiClient()
+    final library = await _featureApi
         .getMultiAccountTaskOrchestrationPublicAccounts(
           scriptName: widget.scriptName,
         );
@@ -1693,7 +1696,7 @@ class _MultiAccountTaskOrchestrationPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final identifier in selected) {
-      await ApiClient().addMultiAccountTaskOrchestrationAccount(
+      await _featureApi.addMultiAccountTaskOrchestrationAccount(
         scriptName: widget.scriptName,
         publicAccountIdentifier: identifier,
       );
@@ -1718,7 +1721,7 @@ class _MultiAccountTaskOrchestrationPanelState
     if (confirmed != true) return;
     final sortedIndexes = [...indexes]..sort((a, b) => b.compareTo(a));
     for (final accountIndex in sortedIndexes) {
-      await ApiClient().deleteMultiAccountTaskOrchestrationAccount(
+      await _featureApi.deleteMultiAccountTaskOrchestrationAccount(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
       );
@@ -1733,7 +1736,7 @@ class _MultiAccountTaskOrchestrationPanelState
       '删除后会同时清除该账号下的任务及私有配置，是否继续？'.tr,
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountTaskOrchestrationAccount(
+    if (await _featureApi.deleteMultiAccountTaskOrchestrationAccount(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
     )) {
@@ -1746,7 +1749,7 @@ class _MultiAccountTaskOrchestrationPanelState
     final name = await _askText('创建顺序任务组'.tr, '任务组名称'.tr);
     if (name == null) return;
     // 顺序任务组创建后，通过原生 OAS 调度器决定是否启用及下次运行时间。
-    if (await ApiClient().addMultiAccountTaskOrchestrationFixedTimeBatch(
+    if (await _featureApi.addMultiAccountTaskOrchestrationFixedTimeBatch(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       name: name.trim(),
@@ -1760,7 +1763,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String batchId, {
     required bool runNow,
   }) async {
-    final ok = await ApiClient()
+    final ok = await _featureApi
         .quickScheduleMultiAccountTaskOrchestrationSpecialTask(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1771,7 +1774,7 @@ class _MultiAccountTaskOrchestrationPanelState
   }
 
   Future<void> _rerunSpecialTask(int accountIndex, String batchId) async {
-    if (await ApiClient().rerunMultiAccountTaskOrchestrationSpecialTask(
+    if (await _featureApi.rerunMultiAccountTaskOrchestrationSpecialTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -1814,7 +1817,7 @@ class _MultiAccountTaskOrchestrationPanelState
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   onChange: (value) async {
-                    final ok = await ApiClient()
+                    final ok = await _featureApi
                         .setMultiAccountTaskOrchestrationSpecialTaskLastCompleteTime(
                           scriptName: widget.scriptName,
                           accountIndex: accountIndex,
@@ -1892,7 +1895,7 @@ class _MultiAccountTaskOrchestrationPanelState
   ) async {
     final batchId = '${batch['batch_id'] ?? ''}'.trim();
     if (batchId.isEmpty) return;
-    final data = await ApiClient()
+    final data = await _featureApi
         .getMultiAccountTaskOrchestrationFixedTimeBatchSchedulerArgs(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1902,11 +1905,11 @@ class _MultiAccountTaskOrchestrationPanelState
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountTaskOrchestration',
+      task: _featureTaskName,
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient()
+        return _featureApi
             .putMultiAccountTaskOrchestrationFixedTimeBatchSchedulerArg(
               scriptName: config,
               accountIndex: accountIndex,
@@ -1954,7 +1957,7 @@ class _MultiAccountTaskOrchestrationPanelState
     int accountIndex,
     String batchId,
   ) async {
-    final ok = await ApiClient()
+    final ok = await _featureApi
         .setMultiAccountTaskOrchestrationFixedTimeBatchEnable(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1971,7 +1974,7 @@ class _MultiAccountTaskOrchestrationPanelState
       '删除后会一并删除该顺序任务组内的任务、私有配置和运行记录，是否继续？',
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountTaskOrchestrationFixedTimeBatch(
+    if (await _featureApi.deleteMultiAccountTaskOrchestrationFixedTimeBatch(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -2148,13 +2151,13 @@ class _MultiAccountTaskOrchestrationPanelState
           _fixedTaskKey(taskName),
     );
     final ok = enable && !hasEntry
-        ? await ApiClient().addMultiAccountTaskOrchestrationFixedTimeBatchTask(
+        ? await _featureApi.addMultiAccountTaskOrchestrationFixedTimeBatchTask(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             batchId: batchId,
             taskName: taskName,
           )
-        : await ApiClient()
+        : await _featureApi
               .setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable(
                 scriptName: widget.scriptName,
                 accountIndex: accountIndex,
@@ -2181,7 +2184,7 @@ class _MultiAccountTaskOrchestrationPanelState
     final reordered = [...tasks];
     final moved = reordered.removeAt(oldIndex);
     reordered.insert(newIndex, moved);
-    final ok = await ApiClient()
+    final ok = await _featureApi
         .reorderMultiAccountTaskOrchestrationSpecialTaskTasks(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -2244,7 +2247,7 @@ class _MultiAccountTaskOrchestrationPanelState
           icon: Icons.delete_outline_rounded,
           tooltip: '停用任务'.tr,
           onPressed: () async {
-            final ok = await ApiClient()
+            final ok = await _featureApi
                 .setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable(
                   scriptName: widget.scriptName,
                   accountIndex: accountIndex,
@@ -2270,7 +2273,7 @@ class _MultiAccountTaskOrchestrationPanelState
         );
       },
       onDisableTask: (_) async {
-        final ok = await ApiClient()
+        final ok = await _featureApi
             .setMultiAccountTaskOrchestrationFixedTimeBatchTaskEnable(
               scriptName: widget.scriptName,
               accountIndex: accountIndex,
@@ -2333,7 +2336,7 @@ class _MultiAccountTaskOrchestrationPanelState
       ),
     );
     if (status == null) return;
-    if (await ApiClient().setMultiAccountTaskOrchestrationSpecialTaskTaskStatus(
+    if (await _featureApi.setMultiAccountTaskOrchestrationSpecialTaskTaskStatus(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -2365,7 +2368,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String batchDisplayName = '',
     _OrchestrationSettingsPage? returnToBatchPage,
   }) async {
-    final data = await ApiClient()
+    final data = await _featureApi
         .getMultiAccountTaskOrchestrationFixedTimeBatchTaskArgs(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -2380,7 +2383,7 @@ class _MultiAccountTaskOrchestrationPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient()
+        return _featureApi
             .putMultiAccountTaskOrchestrationFixedTimeBatchTaskArg(
               scriptName: config,
               accountIndex: accountIndex,
@@ -2420,7 +2423,7 @@ class _MultiAccountTaskOrchestrationPanelState
   Future<List<String>> _enableDialogTaskNames() async {
     final values = await Future.wait<dynamic>([
       _menuFuture,
-      ApiClient().getMultiAccountTaskOrchestrationFixedTimeTasks(
+      _featureApi.getMultiAccountTaskOrchestrationFixedTimeTasks(
         scriptName: widget.scriptName,
       ),
     ]);
@@ -2463,7 +2466,7 @@ class _MultiAccountTaskOrchestrationPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final taskName in selected) {
-      final ok = await ApiClient().addMultiAccountTaskOrchestrationSingleTask(
+      final ok = await _featureApi.addMultiAccountTaskOrchestrationSingleTask(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
         taskName: taskName,
@@ -2476,7 +2479,7 @@ class _MultiAccountTaskOrchestrationPanelState
   Future<void> _deleteTask(int accountIndex, String taskName) async {
     final confirmed = await _confirm('删除任务'.tr, '删除后会同时清除该账号任务的私有配置，是否继续？'.tr);
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountTaskOrchestrationTask(
+    if (await _featureApi.deleteMultiAccountTaskOrchestrationTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -2486,18 +2489,18 @@ class _MultiAccountTaskOrchestrationPanelState
   }
 
   Future<void> _openPublicSettings() async {
-    final data = await ApiClient().getMultiAccountTaskOrchestrationPublicArgs(
+    final data = await _featureApi.getMultiAccountTaskOrchestrationPublicArgs(
       scriptName: widget.scriptName,
     );
     if (!mounted || data.isEmpty) return;
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountTaskOrchestration',
+      task: _featureTaskName,
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountTaskOrchestrationPublicArg(
+        return _featureApi.putMultiAccountTaskOrchestrationPublicArg(
           scriptName: config,
           groupName: group,
           argumentName: argument,
@@ -2524,7 +2527,7 @@ class _MultiAccountTaskOrchestrationPanelState
     String taskDisplayName,
   ) async {
     setState(() => _loadingTasks.add(taskName));
-    final data = await ApiClient().getMultiAccountTaskOrchestrationTaskArgs(
+    final data = await _featureApi.getMultiAccountTaskOrchestrationTaskArgs(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -2540,7 +2543,7 @@ class _MultiAccountTaskOrchestrationPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountTaskOrchestrationTaskArg(
+        return _featureApi.putMultiAccountTaskOrchestrationTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           taskName: task,
@@ -2640,7 +2643,7 @@ class _MultiAccountTaskOrchestrationPanelState
               IconButton(
                 tooltip: '恢复默认配置'.tr,
                 onPressed: () async {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .resetMultiAccountTaskOrchestrationTaskPrivateConfig(
                         scriptName: widget.scriptName,
                         accountIndex: accountIndex,
@@ -2654,7 +2657,7 @@ class _MultiAccountTaskOrchestrationPanelState
               IconButton(
                 tooltip: '恢复默认配置'.tr,
                 onPressed: () async {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .resetMultiAccountTaskOrchestrationFixedTimeBatchTaskPrivateConfigToDefault(
                         scriptName: widget.scriptName,
                         accountIndex: accountIndex,
@@ -2703,7 +2706,7 @@ class _MultiAccountTaskOrchestrationPanelState
                   scriptName: widget.scriptName,
                   taskName: isAccountTask || isBatchTask
                       ? taskName
-                      : 'MultiAccountTaskOrchestration',
+                      : _featureTaskName,
                   stagingMode: true,
                   onCancel: _closeSettingsPage,
                 ),
@@ -2790,7 +2793,7 @@ class _MultiAccountTaskOrchestrationPanelState
       ),
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
-    final success = await ApiClient()
+    final success = await _featureApi
         .copyMultiAccountTaskOrchestrationTaskPrivateConfig(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
@@ -2893,7 +2896,7 @@ class _MultiAccountTaskOrchestrationPanelState
 
   void _reload() {
     if (!mounted) return;
-    final future = ApiClient().getMultiAccountTaskOrchestrationAccounts(
+    final future = _featureApi.getMultiAccountTaskOrchestrationAccounts(
       scriptName: widget.scriptName,
     );
     _stateFuture = future;

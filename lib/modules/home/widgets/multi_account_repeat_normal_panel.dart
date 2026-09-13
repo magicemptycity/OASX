@@ -6,6 +6,7 @@ import 'package:oasx/api/api_client.dart';
 import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
+import 'package:oasx/modules/home/models/multi_account_feature_descriptor.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/task_catalog_row_layout.dart';
 import 'package:oasx/modules/home/widgets/multi_account_task_list_layout.dart';
@@ -34,11 +35,13 @@ class MultiAccountRepeatNewNormalPanel extends StatefulWidget {
     required this.controller,
     required this.scriptModel,
     required this.onBack,
+    required this.feature,
   });
 
   final HomeDashboardController controller;
   final ScriptModel scriptModel;
   final Future<void> Function() onBack;
+  final MultiAccountFeatureDescriptor feature;
 
   String get scriptName => scriptModel.name;
 
@@ -49,6 +52,9 @@ class MultiAccountRepeatNewNormalPanel extends StatefulWidget {
 
 class _MultiAccountRepeatNewNormalPanelState
     extends State<MultiAccountRepeatNewNormalPanel> {
+  MultiAccountTaskListFeatureApi get _featureApi =>
+      MultiAccountTaskListFeatureApi(widget.feature);
+  String get _featureTaskName => widget.feature.taskName;
   late Future<Map<String, dynamic>> _stateFuture;
   late final Future<Map<String, List<String>>> _menuFuture;
   Worker? _nativeScheduleWorker;
@@ -69,7 +75,7 @@ class _MultiAccountRepeatNewNormalPanelState
   @override
   void initState() {
     super.initState();
-    _stateFuture = ApiClient().getMultiAccountRepeatNewNormalAccounts(
+    _stateFuture = _featureApi.getMultiAccountRepeatNewNormalAccounts(
       scriptName: widget.scriptName,
     );
     _menuFuture = ApiClient().getScriptMenu();
@@ -147,13 +153,10 @@ class _MultiAccountRepeatNewNormalPanelState
 
   Widget _buildTaskToolbar(BuildContext context) {
     final canQuickSchedule =
-        widget.controller.isTaskEnabled(
-          widget.scriptModel,
-          'MultiAccountRepeatNewNormal',
-        ) &&
+        widget.controller.isTaskEnabled(widget.scriptModel, _featureTaskName) &&
         widget.controller.canQuickScheduleTask(
           widget.scriptModel,
-          'MultiAccountRepeatNewNormal',
+          _featureTaskName,
         );
     return Row(
       children: [
@@ -165,7 +168,7 @@ class _MultiAccountRepeatNewNormalPanelState
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            '多账号多任务新普通'.tr,
+            widget.feature.displayName.tr,
             style: Theme.of(context).textTheme.titleMedium,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -187,7 +190,7 @@ class _MultiAccountRepeatNewNormalPanelState
         ),
         TaskJsonTransferActions(
           configName: widget.scriptName,
-          taskName: 'MultiAccountRepeatNewNormal',
+          taskName: _featureTaskName,
           onImported: _reloadAfterImport,
         ),
       ],
@@ -201,11 +204,11 @@ class _MultiAccountRepeatNewNormalPanelState
   Future<void> _quickSchedule({required bool runNow}) async {
     final success = await widget.controller.quickScheduleTask(
       scriptName: widget.scriptName,
-      taskName: 'MultiAccountRepeatNewNormal',
+      taskName: _featureTaskName,
       runNow: runNow,
     );
     if (success) {
-      Get.snackbar(I18n.success.tr, '多账号多任务新普通'.tr);
+      Get.snackbar(I18n.success.tr, widget.feature.displayName.tr);
     }
   }
 
@@ -505,7 +508,7 @@ class _MultiAccountRepeatNewNormalPanelState
     final reordered = [...tasks];
     final moved = reordered.removeAt(oldIndex);
     reordered.insert(newIndex, moved);
-    final ok = await ApiClient().reorderMultiAccountRepeatNewNormalTasks(
+    final ok = await _featureApi.reorderMultiAccountRepeatNewNormalTasks(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskNames: reordered
@@ -552,7 +555,7 @@ class _MultiAccountRepeatNewNormalPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final taskName in selected) {
-      final ok = await ApiClient().addMultiAccountRepeatNewNormalTask(
+      final ok = await _featureApi.addMultiAccountRepeatNewNormalTask(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
         taskName: taskName,
@@ -753,12 +756,12 @@ class _MultiAccountRepeatNewNormalPanelState
     bool enable,
   ) async {
     final ok = enable
-        ? await ApiClient().addMultiAccountRepeatNewNormalTask(
+        ? await _featureApi.addMultiAccountRepeatNewNormalTask(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             taskName: taskName,
           )
-        : await ApiClient().setMultiAccountRepeatNewNormalTaskEnable(
+        : await _featureApi.setMultiAccountRepeatNewNormalTaskEnable(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             taskName: taskName,
@@ -822,7 +825,7 @@ class _MultiAccountRepeatNewNormalPanelState
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   onChange: (value) async {
-                    final saved = await ApiClient()
+                    final saved = await _featureApi
                         .setMultiAccountRepeatNewNormalLastCompleteTime(
                           scriptName: widget.scriptName,
                           accountIndex: accountIndex,
@@ -872,7 +875,7 @@ class _MultiAccountRepeatNewNormalPanelState
         '将清除该账号今天的完成、失败和未完成状态；任务及私有配置会保留，并会在下次普通任务运行时从头执行。是否继续？',
       );
       if (confirmed != true) return;
-      final saved = await ApiClient().rerunMultiAccountRepeatNewNormalAccount(
+      final saved = await _featureApi.rerunMultiAccountRepeatNewNormalAccount(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
       );
@@ -985,7 +988,7 @@ class _MultiAccountRepeatNewNormalPanelState
             ),
             FilledButton.icon(
               onPressed: () async {
-                final ok = await ApiClient()
+                final ok = await _featureApi
                     .setMultiAccountRepeatNewNormalTaskProgress(
                       scriptName: widget.scriptName,
                       accountIndex: accountIndex,
@@ -1081,7 +1084,7 @@ class _MultiAccountRepeatNewNormalPanelState
       ),
     );
     if (status == null) return;
-    if (await ApiClient().setMultiAccountRepeatNewNormalTaskStatus(
+    if (await _featureApi.setMultiAccountRepeatNewNormalTaskStatus(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1221,7 +1224,7 @@ class _MultiAccountRepeatNewNormalPanelState
     int accountIndex,
     bool enabled,
   ) async {
-    final ok = await ApiClient().setMultiAccountRepeatNewNormalAccountEnabled(
+    final ok = await _featureApi.setMultiAccountRepeatNewNormalAccountEnabled(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       enabled: enabled,
@@ -1233,12 +1236,12 @@ class _MultiAccountRepeatNewNormalPanelState
     await showPublicAccountLibraryDialog(
       context: context,
       loadAccounts: () async => _maps(
-        (await ApiClient().getMultiAccountRepeatNewNormalPublicAccounts(
+        (await _featureApi.getMultiAccountRepeatNewNormalPublicAccounts(
           scriptName: widget.scriptName,
         ))['accounts'],
       ),
       onDelete: (identifier) =>
-          ApiClient().deleteMultiAccountRepeatNewNormalPublicAccount(
+          _featureApi.deleteMultiAccountRepeatNewNormalPublicAccount(
             scriptName: widget.scriptName,
             identifier: identifier,
           ),
@@ -1246,7 +1249,7 @@ class _MultiAccountRepeatNewNormalPanelState
       onAdd: () async {
         final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
         if (identifier == null || identifier.trim().isEmpty) return false;
-        return ApiClient().addMultiAccountRepeatNewNormalPublicAccount(
+        return _featureApi.addMultiAccountRepeatNewNormalPublicAccount(
           scriptName: widget.scriptName,
           identifier: identifier.trim(),
         );
@@ -1336,7 +1339,7 @@ class _MultiAccountRepeatNewNormalPanelState
                   ('apple_or_android', 'boolean', apple),
                 ];
                 for (final field in fields) {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .putMultiAccountRepeatNewNormalPublicAccountValue(
                         scriptName: widget.scriptName,
                         identifier: currentIdentifier,
@@ -1372,7 +1375,7 @@ class _MultiAccountRepeatNewNormalPanelState
   }
 
   Future<void> _showAddTaskAccount() async {
-    final library = await ApiClient()
+    final library = await _featureApi
         .getMultiAccountRepeatNewNormalPublicAccounts(
           scriptName: widget.scriptName,
         );
@@ -1391,7 +1394,7 @@ class _MultiAccountRepeatNewNormalPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final identifier in selected) {
-      await ApiClient().addMultiAccountRepeatNewNormalAccount(
+      await _featureApi.addMultiAccountRepeatNewNormalAccount(
         scriptName: widget.scriptName,
         publicAccountIdentifier: identifier,
       );
@@ -1416,7 +1419,7 @@ class _MultiAccountRepeatNewNormalPanelState
     if (confirmed != true) return;
     final sortedIndexes = [...indexes]..sort((a, b) => b.compareTo(a));
     for (final accountIndex in sortedIndexes) {
-      await ApiClient().deleteMultiAccountRepeatNewNormalAccount(
+      await _featureApi.deleteMultiAccountRepeatNewNormalAccount(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
       );
@@ -1432,7 +1435,7 @@ class _MultiAccountRepeatNewNormalPanelState
       '删除后会同时清除该账号下的任务及私有配置，是否继续？'.tr,
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewNormalAccount(
+    if (await _featureApi.deleteMultiAccountRepeatNewNormalAccount(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
     )) {
@@ -1445,7 +1448,7 @@ class _MultiAccountRepeatNewNormalPanelState
   Future<void> _deleteTask(int accountIndex, String taskName) async {
     final confirmed = await _confirm('删除任务'.tr, '删除后会同时清除该账号任务的私有配置，是否继续？'.tr);
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewNormalTask(
+    if (await _featureApi.deleteMultiAccountRepeatNewNormalTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1455,18 +1458,18 @@ class _MultiAccountRepeatNewNormalPanelState
   }
 
   Future<void> _openPublicSettings() async {
-    final data = await ApiClient().getMultiAccountRepeatNewNormalPublicArgs(
+    final data = await _featureApi.getMultiAccountRepeatNewNormalPublicArgs(
       scriptName: widget.scriptName,
     );
     if (!mounted || data.isEmpty) return;
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountRepeatNewNormal',
+      task: _featureTaskName,
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewNormalPublicArg(
+        return _featureApi.putMultiAccountRepeatNewNormalPublicArg(
           scriptName: config,
           groupName: group,
           argumentName: argument,
@@ -1501,7 +1504,7 @@ class _MultiAccountRepeatNewNormalPanelState
     String taskDisplayName,
   ) async {
     setState(() => _loadingTasks.add(taskName));
-    final data = await ApiClient().getMultiAccountRepeatNewNormalTaskArgs(
+    final data = await _featureApi.getMultiAccountRepeatNewNormalTaskArgs(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1517,7 +1520,7 @@ class _MultiAccountRepeatNewNormalPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewNormalTaskArg(
+        return _featureApi.putMultiAccountRepeatNewNormalTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           taskName: task,
@@ -1584,7 +1587,7 @@ class _MultiAccountRepeatNewNormalPanelState
               IconButton(
                 tooltip: '恢复默认配置'.tr,
                 onPressed: () async {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .resetMultiAccountRepeatNewNormalTaskPrivateConfig(
                         scriptName: widget.scriptName,
                         accountIndex: accountIndex,
@@ -1612,7 +1615,7 @@ class _MultiAccountRepeatNewNormalPanelState
         Expanded(
           child: Args(
             scriptName: widget.scriptName,
-            taskName: isTaskPage ? taskName : 'MultiAccountRepeatNewNormal',
+            taskName: isTaskPage ? taskName : _featureTaskName,
             stagingMode: true,
             onCancel: _closeSettingsPage,
           ),
@@ -1691,7 +1694,7 @@ class _MultiAccountRepeatNewNormalPanelState
       ),
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
-    final success = await ApiClient()
+    final success = await _featureApi
         .copyMultiAccountRepeatNewNormalTaskPrivateConfig(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
@@ -1762,7 +1765,7 @@ class _MultiAccountRepeatNewNormalPanelState
   void _reload() {
     if (!mounted) return;
     setState(() {
-      _stateFuture = ApiClient().getMultiAccountRepeatNewNormalAccounts(
+      _stateFuture = _featureApi.getMultiAccountRepeatNewNormalAccounts(
         scriptName: widget.scriptName,
       );
     });

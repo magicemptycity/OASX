@@ -11,6 +11,7 @@ import 'package:oasx/api/config_transfer_models.dart';
 import 'package:oasx/config/constants.dart';
 import 'package:oasx/modules/common/models/storage_key.dart';
 import 'package:oasx/modules/home/models/script_statistics_models.dart';
+import 'package:oasx/modules/home/models/multi_account_feature_descriptor.dart';
 import 'package:oasx/modules/home/models/weekly_schedule_models.dart';
 import 'package:oasx/modules/log/log_browser_models.dart';
 import 'package:oasx/translation/i18n.dart';
@@ -25,6 +26,8 @@ part 'api_client_menu_config.dart';
 part 'api_client_config_transfer.dart';
 part 'api_client_task_transfer.dart';
 part 'api_client_script.dart';
+part 'multi_account_scheduler_feature_api.dart';
+part 'multi_account_collection_feature_api.dart';
 part 'api_client_feedback.dart';
 part 'api_client_statistics.dart';
 part 'api_client_logs.dart';
@@ -221,10 +224,8 @@ class ApiClient {
 
   Future<Map<String, Map<String, String>>> getAdditionalTranslate() async {
     final res = await request(
-      () => get(
-        '/home/additional_translate',
-        options: _backendNoCacheOptions(),
-      ),
+      () =>
+          get('/home/additional_translate', options: _backendNoCacheOptions()),
     );
     final result = <String, Map<String, String>>{};
     if (res.isSuccess) {

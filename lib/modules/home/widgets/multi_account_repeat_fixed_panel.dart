@@ -8,6 +8,7 @@ import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
+import 'package:oasx/modules/home/models/multi_account_feature_descriptor.dart';
 import 'package:oasx/modules/home/widgets/task_json_transfer_actions.dart';
 import 'package:oasx/modules/home/widgets/shared_public_account_copy_dialog.dart';
 import 'package:oasx/modules/home/widgets/account_management_dialogs.dart';
@@ -32,11 +33,13 @@ class MultiAccountRepeatNewFixedPanel extends StatefulWidget {
     required this.controller,
     required this.scriptModel,
     required this.onBack,
+    required this.feature,
   });
 
   final HomeDashboardController controller;
   final ScriptModel scriptModel;
   final Future<void> Function() onBack;
+  final MultiAccountFeatureDescriptor feature;
 
   String get scriptName => scriptModel.name;
 
@@ -47,6 +50,9 @@ class MultiAccountRepeatNewFixedPanel extends StatefulWidget {
 
 class _MultiAccountRepeatNewFixedPanelState
     extends State<MultiAccountRepeatNewFixedPanel> {
+  MultiAccountFixedFeatureApi get _featureApi =>
+      MultiAccountFixedFeatureApi(widget.feature);
+  String get _featureTaskName => widget.feature.taskName;
   late Future<Map<String, dynamic>> _stateFuture;
   final Rxn<Map<String, dynamic>> _liveState = Rxn<Map<String, dynamic>>();
   final ScriptService _scriptService = Get.find<ScriptService>();
@@ -70,7 +76,7 @@ class _MultiAccountRepeatNewFixedPanelState
   @override
   void initState() {
     super.initState();
-    _stateFuture = ApiClient().getMultiAccountRepeatNewFixedAccounts(
+    _stateFuture = _featureApi.getMultiAccountRepeatNewFixedAccounts(
       scriptName: widget.scriptName,
     );
     _watchState(_stateFuture);
@@ -154,13 +160,10 @@ class _MultiAccountRepeatNewFixedPanelState
 
   Widget _buildTaskToolbar(BuildContext context) {
     final canQuickSchedule =
-        widget.controller.isTaskEnabled(
-          widget.scriptModel,
-          'MultiAccountRepeatNewFixed',
-        ) &&
+        widget.controller.isTaskEnabled(widget.scriptModel, _featureTaskName) &&
         widget.controller.canQuickScheduleTask(
           widget.scriptModel,
-          'MultiAccountRepeatNewFixed',
+          _featureTaskName,
         );
     return Row(
       children: [
@@ -172,7 +175,7 @@ class _MultiAccountRepeatNewFixedPanelState
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            '多账号多任务新固定时间'.tr,
+            widget.feature.displayName.tr,
             style: Theme.of(context).textTheme.titleMedium,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -194,7 +197,7 @@ class _MultiAccountRepeatNewFixedPanelState
         ),
         TaskJsonTransferActions(
           configName: widget.scriptName,
-          taskName: 'MultiAccountRepeatNewFixed',
+          taskName: _featureTaskName,
           onImported: _reloadAfterImport,
         ),
       ],
@@ -208,11 +211,11 @@ class _MultiAccountRepeatNewFixedPanelState
   Future<void> _quickSchedule({required bool runNow}) async {
     final success = await widget.controller.quickScheduleTask(
       scriptName: widget.scriptName,
-      taskName: 'MultiAccountRepeatNewFixed',
+      taskName: _featureTaskName,
       runNow: runNow,
     );
     if (success) {
-      Get.snackbar(I18n.success.tr, '多账号多任务新固定时间'.tr);
+      Get.snackbar(I18n.success.tr, widget.feature.displayName.tr);
     }
   }
 
@@ -616,7 +619,7 @@ class _MultiAccountRepeatNewFixedPanelState
       ),
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
-    final success = await ApiClient()
+    final success = await _featureApi
         .copyMultiAccountRepeatNewFixedFixedTimeBatch(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
@@ -927,7 +930,7 @@ class _MultiAccountRepeatNewFixedPanelState
     int accountIndex,
     bool enabled,
   ) async {
-    final ok = await ApiClient().setMultiAccountRepeatNewFixedAccountEnabled(
+    final ok = await _featureApi.setMultiAccountRepeatNewFixedAccountEnabled(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       enabled: enabled,
@@ -939,12 +942,12 @@ class _MultiAccountRepeatNewFixedPanelState
     await showPublicAccountLibraryDialog(
       context: context,
       loadAccounts: () async => _maps(
-        (await ApiClient().getMultiAccountRepeatNewFixedPublicAccounts(
+        (await _featureApi.getMultiAccountRepeatNewFixedPublicAccounts(
           scriptName: widget.scriptName,
         ))['accounts'],
       ),
       onDelete: (identifier) =>
-          ApiClient().deleteMultiAccountRepeatNewFixedPublicAccount(
+          _featureApi.deleteMultiAccountRepeatNewFixedPublicAccount(
             scriptName: widget.scriptName,
             identifier: identifier,
           ),
@@ -952,7 +955,7 @@ class _MultiAccountRepeatNewFixedPanelState
       onAdd: () async {
         final identifier = await _askText('新增公共账号'.tr, '账号标识'.tr);
         if (identifier == null || identifier.trim().isEmpty) return false;
-        return ApiClient().addMultiAccountRepeatNewFixedPublicAccount(
+        return _featureApi.addMultiAccountRepeatNewFixedPublicAccount(
           scriptName: widget.scriptName,
           identifier: identifier.trim(),
         );
@@ -1042,7 +1045,7 @@ class _MultiAccountRepeatNewFixedPanelState
                   ('apple_or_android', 'boolean', apple),
                 ];
                 for (final field in fields) {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .putMultiAccountRepeatNewFixedPublicAccountValue(
                         scriptName: widget.scriptName,
                         identifier: currentIdentifier,
@@ -1078,7 +1081,7 @@ class _MultiAccountRepeatNewFixedPanelState
   }
 
   Future<void> _showAddTaskAccount() async {
-    final library = await ApiClient()
+    final library = await _featureApi
         .getMultiAccountRepeatNewFixedPublicAccounts(
           scriptName: widget.scriptName,
         );
@@ -1097,7 +1100,7 @@ class _MultiAccountRepeatNewFixedPanelState
     );
     if (selected == null || selected.isEmpty) return;
     for (final identifier in selected) {
-      await ApiClient().addMultiAccountRepeatNewFixedAccount(
+      await _featureApi.addMultiAccountRepeatNewFixedAccount(
         scriptName: widget.scriptName,
         publicAccountIdentifier: identifier,
       );
@@ -1122,7 +1125,7 @@ class _MultiAccountRepeatNewFixedPanelState
     if (confirmed != true) return;
     final sortedIndexes = [...indexes]..sort((a, b) => b.compareTo(a));
     for (final accountIndex in sortedIndexes) {
-      await ApiClient().deleteMultiAccountRepeatNewFixedAccount(
+      await _featureApi.deleteMultiAccountRepeatNewFixedAccount(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
       );
@@ -1137,7 +1140,7 @@ class _MultiAccountRepeatNewFixedPanelState
       '删除后会同时清除该账号下的任务及私有配置，是否继续？'.tr,
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewFixedAccount(
+    if (await _featureApi.deleteMultiAccountRepeatNewFixedAccount(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
     )) {
@@ -1150,7 +1153,7 @@ class _MultiAccountRepeatNewFixedPanelState
     final name = await _askText('创建固定时间特殊任务'.tr, '特殊任务名称'.tr);
     if (name == null) return;
     // 特殊任务创建后，再通过“调度器设置”决定运行时间和周期。
-    if (await ApiClient().addMultiAccountRepeatNewFixedFixedTimeBatch(
+    if (await _featureApi.addMultiAccountRepeatNewFixedFixedTimeBatch(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       name: name.trim(),
@@ -1164,7 +1167,7 @@ class _MultiAccountRepeatNewFixedPanelState
     String batchId, {
     required bool runNow,
   }) async {
-    final ok = await ApiClient()
+    final ok = await _featureApi
         .quickScheduleMultiAccountRepeatNewFixedSpecialTask(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1175,7 +1178,7 @@ class _MultiAccountRepeatNewFixedPanelState
   }
 
   Future<void> _rerunSpecialTask(int accountIndex, String batchId) async {
-    if (await ApiClient().rerunMultiAccountRepeatNewFixedSpecialTask(
+    if (await _featureApi.rerunMultiAccountRepeatNewFixedSpecialTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -1218,7 +1221,7 @@ class _MultiAccountRepeatNewFixedPanelState
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   onChange: (value) async {
-                    final ok = await ApiClient()
+                    final ok = await _featureApi
                         .setMultiAccountRepeatNewFixedSpecialTaskLastCompleteTime(
                           scriptName: widget.scriptName,
                           accountIndex: accountIndex,
@@ -1295,7 +1298,7 @@ class _MultiAccountRepeatNewFixedPanelState
   ) async {
     final batchId = '${batch['batch_id'] ?? ''}';
     if (batchId.isEmpty) return;
-    final data = await ApiClient()
+    final data = await _featureApi
         .getMultiAccountRepeatNewFixedFixedTimeBatchSchedulerArgs(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1305,11 +1308,11 @@ class _MultiAccountRepeatNewFixedPanelState
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountRepeatNewFixed',
+      task: _featureTaskName,
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient()
+        return _featureApi
             .putMultiAccountRepeatNewFixedFixedTimeBatchSchedulerArg(
               scriptName: config,
               accountIndex: accountIndex,
@@ -1359,7 +1362,7 @@ class _MultiAccountRepeatNewFixedPanelState
     int accountIndex,
     String batchId,
   ) async {
-    final ok = await ApiClient()
+    final ok = await _featureApi
         .setMultiAccountRepeatNewFixedFixedTimeBatchEnable(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1376,7 +1379,7 @@ class _MultiAccountRepeatNewFixedPanelState
       '删除后会一并删除该特殊任务的任务、私有配置和运行记录，是否继续？',
     );
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewFixedFixedTimeBatch(
+    if (await _featureApi.deleteMultiAccountRepeatNewFixedFixedTimeBatch(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -1441,7 +1444,7 @@ class _MultiAccountRepeatNewFixedPanelState
         );
       },
       onDisableTask: (_) async {
-        final ok = await ApiClient()
+        final ok = await _featureApi
             .setMultiAccountRepeatNewFixedFixedTimeBatchTaskEnable(
               scriptName: widget.scriptName,
               accountIndex: accountIndex,
@@ -1504,7 +1507,7 @@ class _MultiAccountRepeatNewFixedPanelState
       ),
     );
     if (status == null) return;
-    if (await ApiClient().setMultiAccountRepeatNewFixedSpecialTaskTaskStatus(
+    if (await _featureApi.setMultiAccountRepeatNewFixedSpecialTaskTaskStatus(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       batchId: batchId,
@@ -1533,7 +1536,7 @@ class _MultiAccountRepeatNewFixedPanelState
     String batchDisplayName = '',
     _FixedSettingsPage? returnToBatchPage,
   }) async {
-    final data = await ApiClient()
+    final data = await _featureApi
         .getMultiAccountRepeatNewFixedFixedTimeBatchTaskArgs(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -1548,7 +1551,7 @@ class _MultiAccountRepeatNewFixedPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewFixedFixedTimeBatchTaskArg(
+        return _featureApi.putMultiAccountRepeatNewFixedFixedTimeBatchTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           batchId: batchId,
@@ -1587,7 +1590,7 @@ class _MultiAccountRepeatNewFixedPanelState
   Future<void> _showAddTaskDialog(int accountIndex) async {
     // 使用后端提供的可执行任务目录，任务名与已添加记录均为统一的下划线格式。
     // 这样已添加任务能被正确识别并禁用，避免重复选择。
-    final catalog = await ApiClient()
+    final catalog = await _featureApi
         .getMultiAccountRepeatNewFixedFixedTimeTasks(
           scriptName: widget.scriptName,
         );
@@ -1685,7 +1688,7 @@ class _MultiAccountRepeatNewFixedPanelState
     searchController.dispose();
     if (selectedTasks == null || selectedTasks.isEmpty) return;
     for (final taskName in selectedTasks) {
-      final ok = await ApiClient().addMultiAccountRepeatNewFixedTask(
+      final ok = await _featureApi.addMultiAccountRepeatNewFixedTask(
         scriptName: widget.scriptName,
         accountIndex: accountIndex,
         taskName: taskName,
@@ -1698,7 +1701,7 @@ class _MultiAccountRepeatNewFixedPanelState
   Future<void> _deleteTask(int accountIndex, String taskName) async {
     final confirmed = await _confirm('删除任务'.tr, '删除后会同时清除该账号任务的私有配置，是否继续？'.tr);
     if (confirmed != true) return;
-    if (await ApiClient().deleteMultiAccountRepeatNewFixedTask(
+    if (await _featureApi.deleteMultiAccountRepeatNewFixedTask(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1708,18 +1711,18 @@ class _MultiAccountRepeatNewFixedPanelState
   }
 
   Future<void> _openPublicSettings() async {
-    final data = await ApiClient().getMultiAccountRepeatNewFixedPublicArgs(
+    final data = await _featureApi.getMultiAccountRepeatNewFixedPublicArgs(
       scriptName: widget.scriptName,
     );
     if (!mounted || data.isEmpty) return;
     final args = Get.find<ArgsController>();
     await args.loadGroupsFromData(
       config: widget.scriptName,
-      task: 'MultiAccountRepeatNewFixed',
+      task: _featureTaskName,
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewFixedPublicArg(
+        return _featureApi.putMultiAccountRepeatNewFixedPublicArg(
           scriptName: config,
           groupName: group,
           argumentName: argument,
@@ -1745,7 +1748,7 @@ class _MultiAccountRepeatNewFixedPanelState
     String taskDisplayName,
   ) async {
     setState(() => _loadingTasks.add(taskName));
-    final data = await ApiClient().getMultiAccountRepeatNewFixedTaskArgs(
+    final data = await _featureApi.getMultiAccountRepeatNewFixedTaskArgs(
       scriptName: widget.scriptName,
       accountIndex: accountIndex,
       taskName: taskName,
@@ -1761,7 +1764,7 @@ class _MultiAccountRepeatNewFixedPanelState
       json: data,
       stagingMode: true,
       saveArgumentOverride: (config, task, group, argument, type, value) {
-        return ApiClient().putMultiAccountRepeatNewFixedTaskArg(
+        return _featureApi.putMultiAccountRepeatNewFixedTaskArg(
           scriptName: config,
           accountIndex: accountIndex,
           taskName: task,
@@ -1868,7 +1871,7 @@ class _MultiAccountRepeatNewFixedPanelState
               IconButton(
                 tooltip: '恢复默认配置'.tr,
                 onPressed: () async {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .resetMultiAccountRepeatNewFixedTaskPrivateConfig(
                         scriptName: widget.scriptName,
                         accountIndex: accountIndex,
@@ -1882,7 +1885,7 @@ class _MultiAccountRepeatNewFixedPanelState
               IconButton(
                 tooltip: '恢复默认配置'.tr,
                 onPressed: () async {
-                  final ok = await ApiClient()
+                  final ok = await _featureApi
                       .resetMultiAccountRepeatNewFixedFixedTimeBatchTaskPrivateConfigToDefault(
                         scriptName: widget.scriptName,
                         accountIndex: accountIndex,
@@ -1931,7 +1934,7 @@ class _MultiAccountRepeatNewFixedPanelState
                   scriptName: widget.scriptName,
                   taskName: isAccountTask || isBatchTask
                       ? taskName
-                      : 'MultiAccountRepeatNewFixed',
+                      : _featureTaskName,
                   stagingMode: true,
                   onCancel: _closeSettingsPage,
                 ),
@@ -2108,13 +2111,13 @@ class _MultiAccountRepeatNewFixedPanelState
           _fixedTaskKey(taskName),
     );
     final ok = enable && !hasEntry
-        ? await ApiClient().addMultiAccountRepeatNewFixedFixedTimeBatchTask(
+        ? await _featureApi.addMultiAccountRepeatNewFixedFixedTimeBatchTask(
             scriptName: widget.scriptName,
             accountIndex: accountIndex,
             batchId: batchId,
             taskName: taskName,
           )
-        : await ApiClient()
+        : await _featureApi
               .setMultiAccountRepeatNewFixedFixedTimeBatchTaskEnable(
                 scriptName: widget.scriptName,
                 accountIndex: accountIndex,
@@ -2141,7 +2144,7 @@ class _MultiAccountRepeatNewFixedPanelState
     final reordered = [...tasks];
     final moved = reordered.removeAt(oldIndex);
     reordered.insert(newIndex, moved);
-    final ok = await ApiClient()
+    final ok = await _featureApi
         .reorderMultiAccountRepeatNewFixedSpecialTaskTasks(
           scriptName: widget.scriptName,
           accountIndex: accountIndex,
@@ -2235,7 +2238,7 @@ class _MultiAccountRepeatNewFixedPanelState
       ),
     );
     if (targetIndexes == null || targetIndexes.isEmpty) return;
-    final success = await ApiClient()
+    final success = await _featureApi
         .copyMultiAccountRepeatNewFixedTaskPrivateConfig(
           scriptName: widget.scriptName,
           accountIndex: sourceAccountIndex,
@@ -2338,7 +2341,7 @@ class _MultiAccountRepeatNewFixedPanelState
 
   void _reload() {
     if (!mounted) return;
-    final future = ApiClient().getMultiAccountRepeatNewFixedAccounts(
+    final future = _featureApi.getMultiAccountRepeatNewFixedAccounts(
       scriptName: widget.scriptName,
     );
     _stateFuture = future;
