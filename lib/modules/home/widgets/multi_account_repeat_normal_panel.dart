@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:oasx/api/api_client.dart';
+import 'package:oasx/service/script_service.dart';
 import 'package:oasx/modules/args/index.dart';
 import 'package:oasx/modules/home/controllers/dashboard_controller.dart';
 import 'package:oasx/modules/home/models/config_model.dart';
@@ -57,7 +58,11 @@ class _MultiAccountRepeatNewNormalPanelState
   String get _featureTaskName => widget.feature.taskName;
   late Future<Map<String, dynamic>> _stateFuture;
   late final Future<Map<String, List<String>>> _menuFuture;
+  final ScriptService _scriptService = Get.find<ScriptService>();
+  Worker? _overviewWorker;
   Worker? _nativeScheduleWorker;
+  bool _reloadInProgress = false;
+  bool _reloadPending = false;
   int _selectedAccount = 1;
   final Set<String> _loadingTasks = <String>{};
   final TextEditingController _taskSearchController = TextEditingController();
@@ -79,6 +84,7 @@ class _MultiAccountRepeatNewNormalPanelState
       scriptName: widget.scriptName,
     );
     _menuFuture = ApiClient().getScriptMenu();
+    _bindOverviewPush();
     _bindNativeScheduleRefresh();
   }
 
@@ -100,6 +106,7 @@ class _MultiAccountRepeatNewNormalPanelState
 
   @override
   void dispose() {
+    _overviewWorker?.dispose();
     _nativeScheduleWorker?.dispose();
     _taskSearchController.dispose();
     super.dispose();
@@ -1762,12 +1769,40 @@ class _MultiAccountRepeatNewNormalPanelState
     );
   }
 
+  void _bindOverviewPush() {
+    _overviewWorker?.dispose();
+    _overviewWorker = ever(_scriptService.multiAccountOverviewEvents, (_) {
+      final event = _scriptService.multiAccountOverviewEvent(
+        widget.scriptName,
+        widget.feature.overviewKind ?? 'normal',
+      );
+      if (event != null) _reload();
+    });
+  }
+
   void _reload() {
     if (!mounted) return;
-    setState(() {
-      _stateFuture = _featureApi.getMultiAccountRepeatNewNormalAccounts(
-        scriptName: widget.scriptName,
-      );
-    });
+    _reloadPending = true;
+    if (!_reloadInProgress) _drainReloads();
+  }
+
+  Future<void> _drainReloads() async {
+    _reloadInProgress = true;
+    try {
+      while (mounted && _reloadPending) {
+        _reloadPending = false;
+        final future = _featureApi.getMultiAccountRepeatNewNormalAccounts(
+          scriptName: widget.scriptName,
+        );
+        setState(() => _stateFuture = future);
+        try {
+          await future;
+        } catch (_) {}
+      }
+    } finally {
+      _reloadInProgress = false;
+      // 关闭竞态窗口：如果最后一次请求结束时又收到事件，继续排空。
+      if (mounted && _reloadPending) _drainReloads();
+    }
   }
 }

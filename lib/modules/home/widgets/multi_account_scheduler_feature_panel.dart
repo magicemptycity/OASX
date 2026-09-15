@@ -42,6 +42,8 @@ class _MultiAccountSchedulerFeaturePanelState
   final ScriptService _scriptService = Get.find<ScriptService>();
   Worker? _overviewWorker;
   Worker? _nativeScheduleWorker;
+  bool _reloadInProgress = false;
+  bool _reloadPending = false;
   Map<String, dynamic>? _activeOverviewAccount;
   _AccountSchedulerSettingsPage _settingsPage =
       _AccountSchedulerSettingsPage.none;
@@ -1030,8 +1032,25 @@ class _MultiAccountSchedulerFeaturePanelState
 
   void _reload() {
     if (!mounted) return;
-    setState(() {
-      _stateFuture = _featureApi.getAccounts(scriptName: _scriptName);
-    });
+    _reloadPending = true;
+    if (!_reloadInProgress) _drainReloads();
+  }
+
+  Future<void> _drainReloads() async {
+    _reloadInProgress = true;
+    try {
+      while (mounted && _reloadPending) {
+        _reloadPending = false;
+        final future = _featureApi.getAccounts(scriptName: _scriptName);
+        setState(() => _stateFuture = future);
+        try {
+          await future;
+        } catch (_) {}
+      }
+    } finally {
+      _reloadInProgress = false;
+      // 关闭竞态窗口：如果最后一次请求结束时又收到事件，继续排空。
+      if (mounted && _reloadPending) _drainReloads();
+    }
   }
 }

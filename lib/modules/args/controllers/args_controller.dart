@@ -12,8 +12,9 @@ class ArgsController extends GetxController {
   static const String schedulerGroup = 'scheduler';
   static const String nextRunArg = 'next_run';
   static const String enableArg = 'enable';
-  static final RegExp _dateTimePattern =
-      RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$');
+  static final RegExp _dateTimePattern = RegExp(
+    r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$',
+  );
   static final RegExp _timePattern = RegExp(r'^\d{2}:\d{2}:\d{2}$');
   static final RegExp _timeDeltaPattern = RegExp(r'^\d{2,} \d{2}:\d{2}:\d{2}$');
 
@@ -63,8 +64,10 @@ class ArgsController extends GetxController {
       for (final argument in entry.value) {
         arguments.add(ArgumentModel.fromJson(argument));
       }
-      groupsMap[entry.key] =
-          GroupsModel(groupName: entry.key, members: arguments);
+      groupsMap[entry.key] = GroupsModel(
+        groupName: entry.key,
+        members: arguments,
+      );
     }
     groupsData.value = groupsMap;
     groupsName.value = names;
@@ -100,11 +103,15 @@ class ArgsController extends GetxController {
       final arguments = <ArgumentModel>[];
       for (final argument in entry.value) {
         if (argument is Map) {
-          arguments.add(ArgumentModel.fromJson(argument.cast<String, dynamic>()));
+          arguments.add(
+            ArgumentModel.fromJson(argument.cast<String, dynamic>()),
+          );
         }
       }
-      groupsMap[entry.key] =
-          GroupsModel(groupName: entry.key, members: arguments);
+      groupsMap[entry.key] = GroupsModel(
+        groupName: entry.key,
+        members: arguments,
+      );
     }
     groupsData.value = groupsMap;
     groupsName.value = names;
@@ -112,7 +119,11 @@ class ArgsController extends GetxController {
   }
 
   Future<dynamic> getArgValue(
-      String config, String task, String group, String argument) {
+    String config,
+    String task,
+    String group,
+    String argument,
+  ) {
     if (groupsData.value.isEmpty) {
       loadGroups(config: config, task: task);
     }
@@ -122,13 +133,25 @@ class ArgsController extends GetxController {
         .value;
   }
 
-  Future<bool> setArgument(String? config, String? task, String group,
-      String argument, String type, dynamic value) async {
+  Future<bool> setArgument(
+    String? config,
+    String? task,
+    String group,
+    String argument,
+    String type,
+    dynamic value,
+  ) async {
     if (config == null || task == null || config.isEmpty || task.isEmpty) {
       return false;
     }
-    final ret = await ApiClient()
-        .putScriptArg(config, task, group, argument, type, value);
+    final ret = await ApiClient().putScriptArg(
+      config,
+      task,
+      group,
+      argument,
+      type,
+      value,
+    );
     if (ret && group == schedulerGroup) {
       await Get.find<WebSocketService>().send(config, 'get_schedule');
     }
@@ -136,18 +159,37 @@ class ArgsController extends GetxController {
   }
 
   Future<bool> updateScriptTaskNextRun(
-      String config, String task, String nextRun) async {
+    String config,
+    String task,
+    String nextRun,
+  ) async {
     return setArgument(
-        config, task, schedulerGroup, nextRunArg, 'next_run', nextRun);
+      config,
+      task,
+      schedulerGroup,
+      nextRunArg,
+      'next_run',
+      nextRun,
+    );
   }
 
   Future<bool> updateScriptTask(String config, String task, bool enable) async {
     return setArgument(
-        config, task, schedulerGroup, enableArg, 'boolean', enable);
+      config,
+      task,
+      schedulerGroup,
+      enableArg,
+      'boolean',
+      enable,
+    );
   }
 
   void stageArgumentChange(
-      String group, String argument, dynamic value, String type) {
+    String group,
+    String argument,
+    dynamic value,
+    String type,
+  ) {
     final model = findArgument(group, argument);
     if (model == null) {
       return;
@@ -201,8 +243,8 @@ class ArgsController extends GetxController {
       return null;
     }
     return groupModel.members.cast<ArgumentModel>().firstWhereOrNull(
-          (item) => item.title == argument,
-        );
+      (item) => item.title == argument,
+    );
   }
 
   bool isFieldDirty(String group, String argument) {
@@ -264,31 +306,54 @@ class ArgsController extends GetxController {
         : [_loadedConfig];
     final savedKeys = <String>{};
     try {
-      for (final key in dirtyFieldKeys.toList()) {
-        final field = _decodeFieldKey(key);
-        final model = findArgument(field.group, field.argument);
-        if (model == null) {
-          continue;
+      if (_saveArgumentOverride == null) {
+        final updates = <Map<String, dynamic>>[];
+        for (final key in dirtyFieldKeys.toList()) {
+          final field = _decodeFieldKey(key);
+          final model = findArgument(field.group, field.argument);
+          if (model == null) continue;
+          updates.add({
+            'group': field.group,
+            'argument': field.argument,
+            'types': model.type,
+            'value': model.value,
+          });
         }
-        var fieldSuccess = true;
         for (final config in targets) {
+          final ret = await ApiClient().putScriptArgs(
+            config,
+            _loadedTask,
+            updates,
+          );
+          allSuccess = ret && allSuccess;
+        }
+        if (allSuccess) {
+          for (final key in dirtyFieldKeys.toList()) {
+            final field = _decodeFieldKey(key);
+            final model = findArgument(field.group, field.argument);
+            if (model != null) _originalValues[key] = model.value;
+          }
+          dirtyFieldKeys.clear();
+        }
+      } else {
+        for (final key in dirtyFieldKeys.toList()) {
+          final field = _decodeFieldKey(key);
+          final model = findArgument(field.group, field.argument);
+          if (model == null) continue;
           final ret = await _persistArgument(
-            config: config,
+            config: _loadedConfig,
             task: _loadedTask,
             group: field.group,
             argument: field.argument,
             type: model.type,
             value: model.value,
           );
-          fieldSuccess = ret && fieldSuccess;
+          allSuccess = ret && allSuccess;
+          if (ret) {
+            _originalValues[key] = model.value;
+            savedKeys.add(key);
+          }
         }
-        allSuccess = fieldSuccess && allSuccess;
-        if (fieldSuccess) {
-          _originalValues[key] = model.value;
-          savedKeys.add(key);
-        }
-      }
-      if (savedKeys.isNotEmpty) {
         dirtyFieldKeys.removeAll(savedKeys);
       }
       dirtyFieldKeys.refresh();
@@ -306,9 +371,10 @@ class ArgsController extends GetxController {
       'date_time' =>
         _dateTimePattern.hasMatch(current) ? null : I18n.argsInvalidDateTime.tr,
       'time' => _timePattern.hasMatch(current) ? null : I18n.argsInvalidTime.tr,
-      'time_delta' => _timeDeltaPattern.hasMatch(current)
-          ? null
-          : I18n.argsInvalidTimeDelta.tr,
+      'time_delta' =>
+        _timeDeltaPattern.hasMatch(current)
+            ? null
+            : I18n.argsInvalidTimeDelta.tr,
       'enum' => _validateEnum(model, current),
       _ => null,
     };
@@ -336,25 +402,19 @@ class ArgsController extends GetxController {
     required dynamic value,
   }) async {
     if (_saveArgumentOverride != null) {
-      return _saveArgumentOverride!(
-        config,
-        task,
-        group,
-        argument,
-        type,
-        value,
-      );
+      return _saveArgumentOverride!(config, task, group, argument, type, value);
     }
     return setArgument(config, task, group, argument, type, value);
   }
 
   List<String> _normalizeScope(List<String> raw, String config) {
-    final result = raw
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final result =
+        raw
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     if (config.isNotEmpty && !result.contains(config)) {
       result.insert(0, config);
     }
@@ -483,10 +543,7 @@ class ArgumentModel {
 }
 
 class _FieldDescriptor {
-  const _FieldDescriptor({
-    required this.group,
-    required this.argument,
-  });
+  const _FieldDescriptor({required this.group, required this.argument});
 
   final String group;
   final String argument;

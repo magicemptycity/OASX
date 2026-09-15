@@ -67,6 +67,8 @@ class _MultiAccountRepeatTimedPanelState
   final Map<String, bool> _enabledOverrides = <String, bool>{};
   final TextEditingController _taskSearchController = TextEditingController();
   int _stateGeneration = 0;
+  bool _reloadInProgress = false;
+  bool _reloadPending = false;
   String _taskSearchQuery = '';
   bool _showAllTasks = false;
   _AccountTaskFilter _taskFilter = _AccountTaskFilter.all;
@@ -1574,10 +1576,28 @@ class _MultiAccountRepeatTimedPanelState
 
   void _reload() {
     if (!mounted) return;
-    final future = _featureApi.getMultiAccountRepeatTimedAccounts(
-      scriptName: widget.scriptName,
-    );
-    _stateFuture = future;
-    _watchState(future);
+    _reloadPending = true;
+    if (!_reloadInProgress) _drainReloads();
+  }
+
+  Future<void> _drainReloads() async {
+    _reloadInProgress = true;
+    try {
+      while (mounted && _reloadPending) {
+        _reloadPending = false;
+        final future = _featureApi.getMultiAccountRepeatTimedAccounts(
+          scriptName: widget.scriptName,
+        );
+        _stateFuture = future;
+        _watchState(future);
+        try {
+          await future;
+        } catch (_) {}
+      }
+    } finally {
+      _reloadInProgress = false;
+      // 关闭竞态窗口：如果最后一次请求结束时又收到事件，继续排空。
+      if (mounted && _reloadPending) _drainReloads();
+    }
   }
 }

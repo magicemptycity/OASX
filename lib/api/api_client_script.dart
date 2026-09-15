@@ -270,6 +270,18 @@ extension ApiClientScriptX on ApiClient {
     return res.isSuccess && res.data == true;
   }
 
+  /// Persists multiple task arguments in one backend transaction.
+  Future<bool> putScriptArgs(
+    String scriptName,
+    String taskName,
+    List<Map<String, dynamic>> updates,
+  ) async {
+    final res = await request(
+      () => put('/$scriptName/$taskName/arguments', data: updates),
+    );
+    return res.isSuccess && res.data == true;
+  }
+
   /// Synchronizes one task back into the waiting queue immediately.
   Future<bool> syncScriptTaskNextRun(
     String scriptName,

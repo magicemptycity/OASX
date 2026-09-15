@@ -70,6 +70,8 @@ class _MultiAccountTaskOrchestrationPanelState
   _FixedTaskFilter _specialTaskFilter = _FixedTaskFilter.enabled;
   _OrchestrationView _view = _OrchestrationView.overview;
   int _stateGeneration = 0;
+  bool _reloadInProgress = false;
+  bool _reloadPending = false;
   _OrchestrationSettingsPage _settingsPage = _OrchestrationSettingsPage.none;
   int? _settingsAccountIndex;
   String _settingsTaskName = '';
@@ -2897,10 +2899,28 @@ class _MultiAccountTaskOrchestrationPanelState
 
   void _reload() {
     if (!mounted) return;
-    final future = _featureApi.getMultiAccountTaskOrchestrationAccounts(
-      scriptName: widget.scriptName,
-    );
-    _stateFuture = future;
-    _watchState(future);
+    _reloadPending = true;
+    if (!_reloadInProgress) _drainReloads();
+  }
+
+  Future<void> _drainReloads() async {
+    _reloadInProgress = true;
+    try {
+      while (mounted && _reloadPending) {
+        _reloadPending = false;
+        final future = _featureApi.getMultiAccountTaskOrchestrationAccounts(
+          scriptName: widget.scriptName,
+        );
+        _stateFuture = future;
+        _watchState(future);
+        try {
+          await future;
+        } catch (_) {}
+      }
+    } finally {
+      _reloadInProgress = false;
+      // 关闭竞态窗口：如果最后一次请求结束时又收到事件，继续排空。
+      if (mounted && _reloadPending) _drainReloads();
+    }
   }
 }
